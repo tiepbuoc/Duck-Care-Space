@@ -114,7 +114,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Đổi sang bản "xlsx-js-style" (fork của SheetJS) vì bản xlsx.full.min.js gốc
+     không hỗ trợ ghi định dạng ô (viền, in đậm, tô màu...) khi xuất file. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
 <script src="assets/js/firebase-config.js"></script>
 <script>
 const loginView = document.getElementById('login-view');
@@ -395,6 +397,36 @@ function makeSheet(rows, widths, dateFormat) {
   return ws;
 }
 
+// Kẻ viền 4 phía (mảnh, màu đen) cho toàn bộ ô trong vùng "range" (vd: "A4:C16").
+// Tạo ô rỗng cho những vị trí chưa có dữ liệu để viền được vẽ đầy đủ, không bị hụt ô.
+function applyBorderToRange(ws, range) {
+  const r = XLSX.utils.decode_range(range);
+  const thin = { style: 'thin', color: { rgb: '000000' } };
+  for (let R = r.s.r; R <= r.e.r; R++) {
+    for (let C = r.s.c; C <= r.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+      ws[addr].s = ws[addr].s || {};
+      ws[addr].s.border = { top: thin, bottom: thin, left: thin, right: thin };
+    }
+  }
+  // Mở rộng !ref nếu vùng viền nằm ngoài phạm vi dữ liệu hiện có.
+  const cur = XLSX.utils.decode_range(ws['!ref']);
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: Math.min(cur.s.r, r.s.r), c: Math.min(cur.s.c, r.s.c) },
+    e: { r: Math.max(cur.e.r, r.e.r), c: Math.max(cur.e.c, r.e.c) },
+  });
+}
+
+// In đậm chữ cho một danh sách địa chỉ ô (vd: ['A1','A4','B4','C4']).
+function applyBoldToCells(ws, addrs) {
+  addrs.forEach(addr => {
+    if (!ws[addr]) return;
+    ws[addr].s = ws[addr].s || {};
+    ws[addr].s.font = Object.assign({}, ws[addr].s.font, { bold: true });
+  });
+}
+
 function buildReportWorkbook(data, now) {
   now = now || new Date();
   const { visits, visitors, radar, breathing, whispers } = data;
@@ -429,7 +461,12 @@ function buildReportWorkbook(data, now) {
     ['   — Chờ duyệt', wStatus.pending, ''],
     ['   — Từ chối / đã gỡ', wStatus.rejected, ''],
   ];
-  XLSX.utils.book_append_sheet(wb, makeSheet(overview, [38, 16, 90]), 'Tổng quan');
+  const wsOverview = makeSheet(overview, [38, 16, 90]);
+  // Yêu cầu định dạng riêng cho sheet "Tổng quan":
+  wsOverview['!cols'][1] = { wpx: 225 };          // 1) cột B rộng 225px
+  applyBorderToRange(wsOverview, 'A4:C16');        // 2) viền 4 phía cho A4:C16
+  applyBoldToCells(wsOverview, ['A1', 'A4', 'B4', 'C4']); // 3) in đậm A1, A4, B4, C4
+  XLSX.utils.book_append_sheet(wb, wsOverview, 'Tổng quan');
 
   // ----- Theo ngày -----
   const byDay = {};
@@ -497,7 +534,7 @@ function buildReportWorkbook(data, now) {
 
 document.getElementById('export-btn').addEventListener('click', () => {
   if (typeof XLSX === 'undefined') {
-    alert('Chưa tải được thư viện xuất Excel (cần kết nối Internet tới cdnjs.cloudflare.com). Hãy tải lại trang rồi thử lại.');
+    alert('Chưa tải được thư viện xuất Excel (cần kết nối Internet tới cdn.jsdelivr.net). Hãy tải lại trang rồi thử lại.');
     return;
   }
   if (loadErrors.size &&
