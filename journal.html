@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nhật ký 14 ngày — Duck Care Space</title>
+<meta name="description" content="Bảng checklist 14 ngày với các hành động vi mô giúp giảm áp lực hoàn hảo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦆</text></svg>">
+<style>
+  .progress-track { height: 10px; border-radius: 999px; background: var(--pond-deep); overflow: hidden; margin: 14px 0 6px; }
+  .progress-fill { height: 100%; background: var(--butter); transition: width 0.4s ease; }
+  .day-list { display: flex; flex-direction: column; gap: 10px; }
+  .day-card {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--cream); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px 18px;
+  }
+  .day-card.is-done { background: #F3EFD9; border-color: var(--butter-deep); }
+  .day-check {
+    width: 26px; height: 26px; flex-shrink:0; margin-top:2px;
+    border-radius: 8px; border: 1.5px solid var(--line); background: var(--white);
+    display: flex; align-items:center; justify-content:center; cursor: pointer;
+  }
+  .day-check.checked { background: var(--butter); border-color: var(--butter-deep); }
+  .day-num { font-family: var(--font-display); color: var(--butter-deep); font-size: 0.85rem; margin-bottom: 2px; }
+  .day-text { font-weight: 500; }
+  .day-note {
+    margin-top: 8px; width: 100%; font-size: 0.88rem; padding: 8px 10px; border-radius: 10px;
+    display:none;
+  }
+  .day-card.is-done .day-note { display: block; }
+  .reset-row { margin-top: 28px; text-align:center; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Bỏ qua, đến nội dung chính</a>
+
+<header class="site-header">
+  <div class="site-header__row">
+    <a class="brand" href="index.html"><span class="brand__logo-slot">🦆</span>Duck Care Space</a>
+    <button class="nav-toggle" aria-label="Mở menu" aria-expanded="false">
+      <svg width="18" height="14" viewBox="0 0 18 14" fill="none"><path d="M0 1h18M0 7h18M0 13h18" stroke="currentColor" stroke-width="1.6"/></svg>
+    </button>
+    <nav class="site-nav" aria-label="Điều hướng chính">
+      <a href="index.html">Trang chủ</a>
+      <a href="radar.html">Duck Radar</a>
+      <a href="calm.html">Hồ tĩnh lặng</a>
+      <a href="journal.html">Nhật ký 14 ngày</a>
+      <a href="whispers.html">Duck Whispers</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="section" style="padding-bottom:0;">
+    <div class="wrap wrap--narrow">
+      <p class="muted" style="margin-bottom:8px;">Module G — Growth Mindset</p>
+      <h1 style="font-size:clamp(1.8rem,4vw,2.6rem);">Nhật ký 14 ngày: Gỡ bỏ vỏ bọc</h1>
+      <p>Mỗi ngày một hành động nhỏ để nới lỏng áp lực "phải hoàn hảo". Tiến độ được lưu ngay trên trình duyệt này — không cần tài khoản, nhưng cũng có nghĩa là nếu đổi máy hoặc xoá dữ liệu trình duyệt, tiến độ sẽ mất.</p>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="wrap wrap--narrow">
+      <div class="card">
+        <div class="row" style="justify-content:space-between; align-items:baseline;">
+          <h3 style="margin:0;">Tiến độ của bạn</h3>
+          <span class="muted" id="progress-text">0 / 14 ngày</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap--narrow">
+      <div class="day-list" id="day-list"></div>
+      <div class="reset-row">
+        <button class="btn btn--ghost" id="reset-btn">Đặt lại toàn bộ tiến độ</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap"><p style="margin:0;">Duck Care Space · Dữ liệu nhật ký chỉ lưu trên máy của bạn (Local Storage), không được gửi lên hệ thống nào.</p></div>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
+<script src="assets/js/firebase-config.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+const HABITS = [
+  "Viết ra 1 điều mình đã làm tốt hôm nay, dù rất nhỏ.",
+  "Cho phép bản thân nghỉ 10 phút mà không thấy áy náy.",
+  "Nói với chính mình: \"không sao nếu chưa hoàn hảo\" trước khi nộp một bài tập.",
+  "Khen một người bạn về điều họ đã làm tốt.",
+  "Tắt thông báo học tập ít nhất 30 phút để nghỉ ngơi thật sự.",
+  "Viết ra 1 sai lầm gần đây và điều mình học được từ nó.",
+  "Chia sẻ một cảm xúc thật với người mình tin tưởng.",
+  "Đặt mục tiêu \"đủ tốt\" thay vì \"hoàn hảo\" cho một việc hôm nay.",
+  "Ngủ đủ giấc thay vì thức khuya để hoàn thiện một việc.",
+  "Từ chối một việc mình không có thời gian, mà không thấy có lỗi.",
+  "Ăn một bữa thật chậm rãi, không vừa ăn vừa học.",
+  "Ghi lại 3 điều mình thấy biết ơn hôm nay.",
+  "Cho phép mình dừng so sánh bản thân với người khác, dù chỉ trong hôm nay.",
+  "Nhìn lại 13 ngày qua và viết một câu cho chính mình.",
+];
+
+const STORAGE_KEY = 'duckJournal14';
+
+function loadProgress() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  catch { return {}; }
+}
+function saveProgress(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+let progress = loadProgress();
+
+function render() {
+  const list = document.getElementById('day-list');
+  list.innerHTML = '';
+  HABITS.forEach((text, i) => {
+    const day = i + 1;
+    const entry = progress[day] || { done: false, note: '' };
+    const card = document.createElement('div');
+    card.className = 'day-card' + (entry.done ? ' is-done' : '');
+    card.innerHTML = `
+      <button class="day-check ${entry.done ? 'checked' : ''}" data-day="${day}" aria-pressed="${entry.done}" aria-label="Đánh dấu ngày ${day} hoàn thành">
+        ${entry.done ? '✓' : ''}
+      </button>
+      <div style="flex:1;">
+        <div class="day-num">Ngày ${day}</div>
+        <div class="day-text">${text}</div>
+        <textarea class="day-note" data-day="${day}" rows="2" placeholder="Ghi chú nhanh (không bắt buộc)…">${entry.note || ''}</textarea>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+
+  list.querySelectorAll('.day-check').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const day = btn.dataset.day;
+      const entry = progress[day] || { done: false, note: '' };
+      entry.done = !entry.done;
+      progress[day] = entry;
+      saveProgress(progress);
+      render();
+    });
+  });
+  list.querySelectorAll('.day-note').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const day = ta.dataset.day;
+      const entry = progress[day] || { done: false, note: '' };
+      entry.note = ta.value;
+      progress[day] = entry;
+      saveProgress(progress);
+    });
+  });
+
+  const doneCount = Object.values(progress).filter(e => e.done).length;
+  document.getElementById('progress-text').textContent = `${doneCount} / 14 ngày`;
+  document.getElementById('progress-fill').style.width = (doneCount / 14 * 100) + '%';
+}
+render();
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (confirm('Bạn chắc chắn muốn xoá toàn bộ tiến độ 14 ngày?')) {
+    progress = {};
+    saveProgress(progress);
+    render();
+  }
+});
+</script>
+</body>
+</html>

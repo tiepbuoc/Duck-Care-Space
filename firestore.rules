@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// ============================================================
+//  FIRESTORE SECURITY RULES — DUCK CARE SPACE
+// ============================================================
+// Cách áp dụng:
+//   Firebase Console → Firestore Database → tab "Rules" → dán toàn bộ
+//   nội dung file này đè lên → bấm "Publish".
+//
+// Nguyên tắc bảo mật:
+//   - Học sinh (không đăng nhập) CHỈ được GHI kết quả test / tâm sự,
+//     KHÔNG được đọc dữ liệu của người khác.
+//   - Chỉ tài khoản có mặt trong collection "admins" mới được đọc toàn bộ
+//     dữ liệu thống kê và duyệt Duck Whispers.
+//   - Bảng sẻ chia (Wall of Empathy) là ngoại lệ duy nhất: ai cũng đọc được
+//     NHƯNG chỉ những tâm sự có status = "approved".
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // ---------- Module S: Duck Radar ----------
+    match /radar_results/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['score', 'level', 'createdAt', 'sessionRef'])
+                    && request.resource.data.level in ['xanh', 'vang', 'do']
+                    && request.resource.data.score is int
+                    && request.resource.data.score >= 0
+                    && request.resource.data.score <= 40;
+      allow read: if isAdmin();
+      allow update, delete: if false; // kết quả test không được sửa/xoá sau khi gửi
+    }
+
+    // ---------- Module C: Duck Whispers ----------
+    match /whispers/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['message', 'tag', 'status', 'createdAt', 'sessionRef'])
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 800;
+      // Công khai: chỉ đọc được các bản ghi đã duyệt (dùng cho Wall of Empathy).
+      // Admin: đọc được tất cả (kể cả đang chờ duyệt).
+      allow read: if isAdmin() || resource.data.status == 'approved';
+      allow update: if isAdmin(); // chỉ admin được đổi status (duyệt / từ chối)
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Danh sách admin ----------
+    // Thêm thủ công trong Firebase Console: Firestore → collection "admins"
+    // → tạo document có ID = UID của tài khoản Admin (copy từ tab Authentication).
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // chỉ thêm/sửa thủ công qua Console, không qua web
+    }
+
+    // ---------- Thống kê lượt truy cập ----------
+    match /site_stats/{doc} {
+      // Cho phép public tăng bộ đếm (ẩn danh, không đọc được) để đo lượt truy cập.
+      allow get: if isAdmin();
+      allow list: if false;
+      allow create: if request.resource.data.keys().hasOnly(['count', 'byPage']);
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['count', 'byPage']);
+      allow delete: if false;
+    }
+  }
+}

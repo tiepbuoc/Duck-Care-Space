@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Admin — Duck Care Space</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦆</text></svg>">
+<style>
+  body { background: var(--pond-deep); }
+  .admin-shell { max-width: 980px; margin: 0 auto; padding: 32px 20px 80px; }
+  .admin-header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 28px; flex-wrap:wrap; gap:12px; }
+  .login-card { max-width: 380px; margin: 80px auto; }
+  .stat-grid { display:grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
+  @media (max-width: 760px) { .stat-grid { grid-template-columns: repeat(2,1fr); } }
+  .stat-card { background: var(--cream); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  .stat-card .num { font-family: var(--font-display); font-size: 1.9rem; }
+  .stat-card .label { color: var(--ink-soft); font-size: 0.82rem; }
+  .level-bar-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .level-bar-row .name { width: 130px; font-size: 0.88rem; }
+  .level-bar-track { flex:1; height: 12px; background: var(--pond-deep); border-radius: 999px; overflow:hidden; }
+  .level-bar-fill { height:100%; }
+  .level-bar-row .val { width: 40px; text-align:right; font-size:0.85rem; color: var(--ink-soft); }
+  .tabs { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .tab-btn { padding: 9px 16px; border-radius: 999px; border:1px solid var(--line); background: var(--cream); cursor:pointer; font-family: var(--font-body); font-size:0.9rem; }
+  .tab-btn.is-active { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+  .tab-panel { display:none; }
+  .tab-panel.is-active { display:block; }
+  .msg-card { background: var(--cream); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:10px; }
+  .msg-card__top { display:flex; justify-content:space-between; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .msg-card__actions { display:flex; gap:8px; margin-top:10px; }
+  .btn-sm { padding: 7px 14px; font-size: 0.84rem; }
+  #error-box { color: var(--coral-deep); font-size: 0.88rem; margin-top:10px; min-height: 1em; }
+</style>
+</head>
+<body>
+
+<!-- ---------- LOGIN ---------- -->
+<div class="admin-shell" id="login-view">
+  <div class="card login-card">
+    <h2 style="margin-bottom:4px;">Đăng nhập Admin</h2>
+    <p class="muted mt-0">Duck Care Space — khu vực quản trị.</p>
+    <form id="login-form" class="stack">
+      <div>
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" required autocomplete="username">
+      </div>
+      <div>
+        <label for="login-pass">Mật khẩu</label>
+        <input type="password" id="login-pass" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn--primary btn--wide">Đăng nhập</button>
+      <div id="error-box"></div>
+    </form>
+    <p class="muted" style="margin-top:18px; font-size:0.8rem;">Tài khoản admin được tạo trong Firebase Console → Authentication. Xem README.md để biết cách cấp quyền quản trị cho tài khoản.</p>
+  </div>
+</div>
+
+<!-- ---------- DASHBOARD ---------- -->
+<div class="admin-shell" id="dashboard-view" style="display:none;">
+  <div class="admin-header">
+    <div>
+      <h1 style="font-size:1.6rem; margin-bottom:2px;">🦆 Duck Care Space — Admin</h1>
+      <p class="muted mt-0" id="admin-email" style="margin:0;"></p>
+    </div>
+    <button class="btn btn--ghost" id="logout-btn">Đăng xuất</button>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card"><div class="num" id="stat-visits">–</div><div class="label">Tổng lượt truy cập</div></div>
+    <div class="stat-card"><div class="num" id="stat-tests">–</div><div class="label">Lượt làm Duck Radar</div></div>
+    <div class="stat-card"><div class="num" id="stat-whispers">–</div><div class="label">Lượt gửi Duck Whispers</div></div>
+    <div class="stat-card"><div class="num" id="stat-pending">–</div><div class="label">Đang chờ duyệt</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn is-active" data-tab="radar">Thống kê Duck Radar</button>
+    <button class="tab-btn" data-tab="pending">Duyệt Duck Whispers</button>
+    <button class="tab-btn" data-tab="approved">Bảng sẻ chia đã duyệt</button>
+  </div>
+
+  <!-- Tab: Radar stats -->
+  <div class="tab-panel is-active" id="tab-radar">
+    <div class="card">
+      <h3 class="mt-0">Phân bổ mức độ stress</h3>
+      <div id="level-bars"><p class="muted">Đang tải…</p></div>
+    </div>
+  </div>
+
+  <!-- Tab: pending whispers -->
+  <div class="tab-panel" id="tab-pending">
+    <div id="pending-list"><p class="muted">Đang tải…</p></div>
+  </div>
+
+  <!-- Tab: approved whispers -->
+  <div class="tab-panel" id="tab-approved">
+    <div id="approved-list"><p class="muted">Đang tải…</p></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
+<script src="assets/js/firebase-config.js"></script>
+<script>
+const loginView = document.getElementById('login-view');
+const dashView = document.getElementById('dashboard-view');
+
+/* ---------------- Auth ---------------- */
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const errBox = document.getElementById('error-box');
+  errBox.textContent = '';
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+  } catch (err) {
+    errBox.textContent = 'Đăng nhập thất bại: ' + friendlyAuthError(err.code);
+  }
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
+
+function friendlyAuthError(code) {
+  const map = {
+    'auth/invalid-email': 'Email không hợp lệ.',
+    'auth/user-not-found': 'Tài khoản không tồn tại.',
+    'auth/wrong-password': 'Sai mật khẩu.',
+    'auth/invalid-credential': 'Email hoặc mật khẩu không đúng.',
+    'auth/too-many-requests': 'Bạn đã thử quá nhiều lần, vui lòng đợi một chút.',
+  };
+  return map[code] || 'Vui lòng thử lại.';
+}
+
+auth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    loginView.style.display = 'block';
+    dashView.style.display = 'none';
+    return;
+  }
+  // Kiểm tra user có nằm trong collection "admins" không (đọc bị chặn ở rules
+  // nếu không phải admin => catch sẽ bắt lỗi permission-denied và đăng xuất).
+  try {
+    const adminDoc = await db.collection('admins').doc(user.uid).get();
+    if (!adminDoc.exists) {
+      alert('Tài khoản này chưa được cấp quyền Admin. Xem README.md để biết cách cấp quyền.');
+      await auth.signOut();
+      return;
+    }
+  } catch (err) {
+    alert('Tài khoản này chưa được cấp quyền Admin, hoặc chưa cấu hình Firestore Rules đúng cách.');
+    await auth.signOut();
+    return;
+  }
+
+  document.getElementById('admin-email').textContent = user.email;
+  loginView.style.display = 'none';
+  dashView.style.display = 'block';
+  loadDashboard();
+});
+
+/* ---------------- Tabs ---------------- */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('is-active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('is-active');
+  });
+});
+
+/* ---------------- Dashboard data ---------------- */
+async function loadDashboard() {
+  loadVisitStats();
+  loadRadarStats();
+  loadWhispers();
+}
+
+async function loadVisitStats() {
+  try {
+    const doc = await db.collection('site_stats').doc('visits').get();
+    const data = doc.exists ? doc.data() : { count: 0 };
+    document.getElementById('stat-visits').textContent = data.count || 0;
+  } catch (e) {
+    document.getElementById('stat-visits').textContent = '—';
+  }
+}
+
+const LEVEL_META = {
+  xanh: { name: 'Xanh — Bình thường', color: 'var(--lily-deep)' },
+  vang: { name: 'Vàng — Áp lực tiềm ẩn', color: 'var(--amber-deep)' },
+  do:   { name: 'Đỏ — Kiệt sức', color: 'var(--coral-deep)' },
+};
+
+async function loadRadarStats() {
+  try {
+    const snap = await db.collection('radar_results').get();
+    const counts = { xanh: 0, vang: 0, do: 0 };
+    snap.forEach(d => { const lvl = d.data().level; if (counts[lvl] !== undefined) counts[lvl]++; });
+    const total = snap.size;
+
+    document.getElementById('stat-tests').textContent = total;
+
+    const container = document.getElementById('level-bars');
+    container.innerHTML = '';
+    Object.keys(LEVEL_META).forEach(key => {
+      const pct = total ? Math.round((counts[key] / total) * 100) : 0;
+      const row = document.createElement('div');
+      row.className = 'level-bar-row';
+      row.innerHTML = `
+        <div class="name">${LEVEL_META[key].name}</div>
+        <div class="level-bar-track"><div class="level-bar-fill" style="width:${pct}%; background:${LEVEL_META[key].color};"></div></div>
+        <div class="val">${counts[key]}</div>
+      `;
+      container.appendChild(row);
+    });
+    if (!total) container.innerHTML = '<p class="muted">Chưa có dữ liệu Duck Radar.</p>';
+  } catch (e) {
+    document.getElementById('level-bars').innerHTML = '<p class="muted">Không tải được dữ liệu (kiểm tra Firestore Rules).</p>';
+  }
+}
+
+async function loadWhispers() {
+  try {
+    const snap = await db.collection('whispers').orderBy('createdAt', 'desc').get();
+    const pending = [];
+    const approved = [];
+    snap.forEach(d => {
+      const item = { id: d.id, ...d.data() };
+      if (item.status === 'approved') approved.push(item);
+      else if (item.status !== 'rejected') pending.push(item);
+    });
+
+    document.getElementById('stat-whispers').textContent = snap.size;
+    document.getElementById('stat-pending').textContent = pending.length;
+
+    renderPending(pending);
+    renderApproved(approved);
+  } catch (e) {
+    document.getElementById('pending-list').innerHTML = '<p class="muted">Không tải được dữ liệu (kiểm tra Firestore Rules).</p>';
+  }
+}
+
+function renderPending(items) {
+  const el = document.getElementById('pending-list');
+  if (!items.length) { el.innerHTML = '<p class="muted">Không có tâm sự nào đang chờ duyệt. 🎉</p>'; return; }
+  el.innerHTML = '';
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'msg-card';
+    card.innerHTML = `
+      <div class="msg-card__top">
+        <span class="pill pill--pending">Chờ duyệt</span>
+        <span class="muted" style="font-size:0.78rem;">${item.tag || ''}</span>
+      </div>
+      <div>${escapeHtml(item.message || '')}</div>
+      <div class="msg-card__actions">
+        <button class="btn btn--primary btn-sm" data-approve="${item.id}">Duyệt & hiện lên Bảng sẻ chia</button>
+        <button class="btn btn--ghost btn-sm" data-reject="${item.id}">Từ chối</button>
+      </div>
+    `;
+    el.appendChild(card);
+  });
+  el.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => setStatus(b.dataset.approve, 'approved')));
+  el.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', () => setStatus(b.dataset.reject, 'rejected')));
+}
+
+function renderApproved(items) {
+  const el = document.getElementById('approved-list');
+  if (!items.length) { el.innerHTML = '<p class="muted">Chưa có tâm sự nào được duyệt.</p>'; return; }
+  el.innerHTML = '';
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'msg-card';
+    card.innerHTML = `
+      <div class="msg-card__top">
+        <span class="pill pill--approved">Đã duyệt · đang hiển thị</span>
+        <span class="muted" style="font-size:0.78rem;">${item.tag || ''}</span>
+      </div>
+      <div>${escapeHtml(item.message || '')}</div>
+      <div class="msg-card__actions">
+        <button class="btn btn--ghost btn-sm" data-hide="${item.id}">Gỡ khỏi Bảng sẻ chia</button>
+      </div>
+    `;
+    el.appendChild(card);
+  });
+  el.querySelectorAll('[data-hide]').forEach(b => b.addEventListener('click', () => setStatus(b.dataset.hide, 'rejected')));
+}
+
+async function setStatus(id, status) {
+  try {
+    await db.collection('whispers').doc(id).update({ status });
+    loadWhispers();
+  } catch (e) {
+    alert('Không thể cập nhật trạng thái. Kiểm tra lại Firestore Rules / quyền admin.');
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
