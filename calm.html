@@ -29,6 +29,8 @@
     border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #FBE7B0, var(--butter));
     box-shadow: 0 0 0 0 rgba(244,201,93,0.5);
+  }
+  .breathe-circle.is-running {
     animation: breathe-cycle 19s ease-in-out infinite;
   }
   @keyframes breathe-cycle {
@@ -116,10 +118,12 @@
         <p class="muted mt-0">Hít vào 4 giây — Giữ 7 giây — Thở ra 8 giây. Vòng tròn sẽ dẫn nhịp cho bạn.</p>
         <div class="breathe-wrap">
           <div class="breathe-circle-outer"><div class="breathe-circle" id="breathe-circle"></div></div>
-          <div class="breathe-label" id="breathe-label">Hít vào…</div>
-          <div class="breathe-sub" id="breathe-count">4 giây</div>
-          <div class="breathe-controls">
-            <button class="btn btn--ghost" id="breathe-toggle">Tạm dừng nhịp</button>
+          <div class="breathe-label" id="breathe-label">Sẵn sàng khi bạn cần</div>
+          <div class="breathe-sub" id="breathe-count">Bấm bắt đầu để dẫn nhịp</div>
+          <div class="breathe-controls row" style="justify-content:center;">
+            <button class="btn btn--butter" id="breathe-start">Bắt đầu hít thở</button>
+            <button class="btn btn--ghost" id="breathe-toggle" style="display:none;">Tạm dừng nhịp</button>
+            <button class="btn btn--ghost" id="breathe-stop" style="display:none;">Kết thúc</button>
           </div>
         </div>
       </div>
@@ -188,12 +192,18 @@ const PHASES = [
 ];
 let breatheTimer = null;
 let paused = false;
+let started = false;
+
+const circleEl = document.getElementById('breathe-circle');
+const labelEl = document.getElementById('breathe-label');
+const countEl = document.getElementById('breathe-count');
+const startBtn = document.getElementById('breathe-start');
+const toggleBtn = document.getElementById('breathe-toggle');
+const stopBtn = document.getElementById('breathe-stop');
 
 function runBreatheCycle() {
   let phaseIndex = 0;
   let secLeft = PHASES[0].seconds;
-  const labelEl = document.getElementById('breathe-label');
-  const countEl = document.getElementById('breathe-count');
   labelEl.textContent = PHASES[0].label;
   countEl.textContent = secLeft + ' giây';
 
@@ -208,13 +218,35 @@ function runBreatheCycle() {
     countEl.textContent = secLeft + ' giây';
   }, 1000);
 }
-runBreatheCycle();
 
-document.getElementById('breathe-toggle').addEventListener('click', (e) => {
+startBtn.addEventListener('click', () => {
+  started = true;
+  paused = false;
+  circleEl.classList.add('is-running');
+  startBtn.style.display = 'none';
+  toggleBtn.style.display = 'inline-flex';
+  stopBtn.style.display = 'inline-flex';
+  toggleBtn.textContent = 'Tạm dừng nhịp';
+  runBreatheCycle();
+});
+
+toggleBtn.addEventListener('click', () => {
   paused = !paused;
-  const circle = document.getElementById('breathe-circle');
-  circle.style.animationPlayState = paused ? 'paused' : 'running';
-  e.target.textContent = paused ? 'Tiếp tục nhịp' : 'Tạm dừng nhịp';
+  circleEl.style.animationPlayState = paused ? 'paused' : 'running';
+  toggleBtn.textContent = paused ? 'Tiếp tục nhịp' : 'Tạm dừng nhịp';
+});
+
+stopBtn.addEventListener('click', () => {
+  clearInterval(breatheTimer);
+  started = false;
+  paused = false;
+  circleEl.classList.remove('is-running');
+  circleEl.style.animationPlayState = '';
+  labelEl.textContent = 'Sẵn sàng khi bạn cần';
+  countEl.textContent = 'Bấm bắt đầu để dẫn nhịp';
+  startBtn.style.display = 'inline-flex';
+  toggleBtn.style.display = 'none';
+  stopBtn.style.display = 'none';
 });
 
 /* ---------------- Ambient sounds via Web Audio API ---------------- */

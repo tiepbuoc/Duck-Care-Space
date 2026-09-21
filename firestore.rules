@@ -37,16 +37,34 @@ service cloud.firestore {
 
     // ---------- Module C: Duck Whispers ----------
     match /whispers/{id} {
-      allow create: if request.resource.data.keys().hasOnly(['message', 'tag', 'status', 'createdAt', 'sessionRef'])
+      allow create: if request.resource.data.keys().hasOnly(['title', 'message', 'tag', 'status', 'createdAt', 'sessionRef', 'likeCount'])
                     && request.resource.data.status == 'pending'
+                    && request.resource.data.likeCount == 0
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() > 0
+                    && request.resource.data.title.size() <= 120
                     && request.resource.data.message is string
                     && request.resource.data.message.size() > 0
                     && request.resource.data.message.size() <= 800;
       // Công khai: chỉ đọc được các bản ghi đã duyệt (dùng cho Wall of Empathy).
       // Admin: đọc được tất cả (kể cả đang chờ duyệt).
       allow read: if isAdmin() || resource.data.status == 'approved';
-      allow update: if isAdmin(); // chỉ admin được đổi status (duyệt / từ chối)
+      // Admin được sửa mọi trường (duyệt / từ chối...).
+      // Người dùng công khai CHỈ được thay đổi đúng trường "likeCount" (thả tim),
+      // và chỉ trên các bài đã duyệt.
+      allow update: if isAdmin()
+                    || (resource.data.status == 'approved'
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount']));
       allow delete: if isAdmin();
+
+      // Lượt tim — mỗi document = 1 lượt tim của 1 trình duyệt (id tài liệu = mã
+      // định danh ẩn danh phía client). Tồn tại document = đã tim.
+      match /likes/{likerId} {
+        allow get: if true;      // client cần biết mình đã tim bài này chưa
+        allow list: if isAdmin(); // không cho liệt kê danh sách người đã tim công khai
+        allow create, delete: if true;
+        allow update: if false;
+      }
     }
 
     // ---------- Danh sách admin ----------

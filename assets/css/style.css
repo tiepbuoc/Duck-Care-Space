@@ -272,6 +272,10 @@ img { max-width: 100%; display: block; }
   color: var(--ink-soft);
   font-size: 0.86rem;
 }
+.site-footer p {
+  max-width: 640px;
+  margin: 0 auto;
+}
 
 /* ---------- Form elements ---------- */
 

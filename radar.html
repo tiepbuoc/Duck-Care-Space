@@ -10,6 +10,46 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦆</text></svg>">
+<style>
+  .quiz-progress { margin-bottom: 18px; }
+  .quiz-progress__bar { height: 8px; border-radius: 999px; background: var(--pond-deep); overflow: hidden; }
+  .quiz-progress__fill { height: 100%; background: var(--butter); transition: width 0.3s ease; }
+  .quiz-progress__label { text-align: center; margin-top: 8px; font-size: 0.85rem; color: var(--ink-soft); }
+
+  #question-card { min-height: 320px; display:flex; flex-direction:column; justify-content:center; }
+
+  .q-option-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: var(--white);
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: all 0.15s ease;
+  }
+  .q-option-row:last-child { margin-bottom: 0; }
+  .q-option-row:hover { border-color: var(--butter-deep); }
+  .q-option-row input { position:absolute; opacity:0; pointer-events:none; }
+  .q-option-row .q-num {
+    width: 30px; height: 30px; flex-shrink:0;
+    border-radius: 50%; border: 1px solid var(--line); background: var(--pond);
+    display:flex; align-items:center; justify-content:center;
+    font-family: var(--font-display); font-size: 0.95rem; color: var(--ink-soft);
+  }
+  .q-option-row .q-label { font-size: 0.96rem; }
+  .q-option-row.is-checked { background: var(--butter); border-color: var(--butter-deep); }
+  .q-option-row.is-checked .q-num { background: var(--white); color: var(--ink); border-color: var(--butter-deep); }
+  .q-option-row:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  @keyframes q-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  #question-card.is-animating { animation: q-fade-in 0.25s ease; }
+</style>
 </head>
 <body>
 <a class="skip-link" href="#main">Bỏ qua, đến nội dung chính</a>
@@ -42,17 +82,37 @@
     </div>
   </section>
 
-  <!-- ---------- FORM ---------- -->
-  <section class="section section--tight" id="quiz-section">
+  <!-- ---------- INTRO ---------- -->
+  <section class="section section--tight" id="intro-section">
     <div class="wrap wrap--narrow">
-      <form id="radar-form" class="card">
-        <div id="likert-list"></div>
+      <div class="card center">
+        <div style="font-size:2.4rem; margin-bottom:6px;">🦆</div>
+        <h3 style="margin-bottom:8px;">8 câu hỏi, khoảng 2 phút</h3>
+        <p style="margin:0 auto 20px;">Mỗi câu sẽ hiện lần lượt, bạn chọn mức phù hợp nhất rồi qua câu tiếp theo. Không có câu đúng hay sai — chỉ cần đúng với cảm nhận của bạn ngay lúc này.</p>
+        <button class="btn btn--primary" id="start-btn">Bắt đầu khảo sát</button>
+      </div>
+    </div>
+  </section>
 
-        <div style="margin-top:24px;">
-          <button type="submit" class="btn btn--primary btn--wide" id="submit-btn">Nộp bài & xem kết quả</button>
-          <p class="muted center" style="margin-top:10px;">Vui lòng trả lời tất cả câu hỏi trước khi nộp bài.</p>
+  <!-- ---------- FORM ---------- -->
+  <section class="section section--tight" id="quiz-section" style="display:none;">
+    <div class="wrap wrap--narrow">
+      <div class="quiz-progress">
+        <div class="quiz-progress__bar"><div class="quiz-progress__fill" id="progress-fill"></div></div>
+        <div class="quiz-progress__label" id="progress-label">Câu 1 / 8</div>
+      </div>
+
+      <div class="card" id="question-card">
+        <div class="likert" id="likert-single" style="border:none; padding:0;">
+          <div class="likert__q" id="q-text" style="font-size:1.15rem; text-align:center; margin-bottom:22px;"></div>
+          <div class="likert__scale" id="q-options" role="radiogroup"></div>
         </div>
-      </form>
+      </div>
+
+      <div class="row" style="justify-content:space-between; margin-top:20px;">
+        <button class="btn btn--ghost" id="prev-btn">← Câu trước</button>
+        <button class="btn btn--primary" id="next-btn" disabled>Câu tiếp theo →</button>
+      </div>
     </div>
   </section>
 
@@ -102,23 +162,68 @@ const QUESTIONS = [
 ];
 
 const SCALE_LABELS = ["Hiếm khi", "Thỉnh thoảng", "Đôi lúc", "Thường xuyên", "Rất thường xuyên"];
+const answers = new Array(QUESTIONS.length).fill(null);
+let current = 0;
 
-const list = document.getElementById('likert-list');
-QUESTIONS.forEach((q, i) => {
-  const block = document.createElement('div');
-  block.className = 'likert';
-  block.innerHTML = `
-    <div class="likert__q">${i + 1}. ${q}</div>
-    <div class="likert__scale" role="radiogroup" aria-label="Câu ${i + 1}">
-      ${[1,2,3,4,5].map(v => `
-        <label class="likert__opt">
-          <input type="radio" name="q${i}" value="${v}" required>
-          <span><span class="likert__num">${v}</span>${SCALE_LABELS[v-1]}</span>
-        </label>
-      `).join('')}
-    </div>
-  `;
-  list.appendChild(block);
+const introSection = document.getElementById('intro-section');
+const quizSection = document.getElementById('quiz-section');
+const qText = document.getElementById('q-text');
+const qOptions = document.getElementById('q-options');
+const prevBtn = document.getElementById('prev-btn');
+const nextBtn = document.getElementById('next-btn');
+const progressFill = document.getElementById('progress-fill');
+const progressLabel = document.getElementById('progress-label');
+const questionCard = document.getElementById('question-card');
+
+function renderQuestion() {
+  qText.textContent = `${current + 1}. ${QUESTIONS[current]}`;
+  qOptions.innerHTML = '';
+  qOptions.style.display = 'block';
+
+  [1,2,3,4,5].forEach(v => {
+    const row = document.createElement('label');
+    row.className = 'q-option-row' + (answers[current] === v ? ' is-checked' : '');
+    row.innerHTML = `
+      <input type="radio" name="current-q" value="${v}" ${answers[current] === v ? 'checked' : ''}>
+      <span class="q-num">${v}</span>
+      <span class="q-label">${SCALE_LABELS[v-1]}</span>
+    `;
+    row.addEventListener('click', () => {
+      answers[current] = v;
+      renderQuestion();
+    });
+    qOptions.appendChild(row);
+  });
+
+  progressFill.style.width = `${((current) / QUESTIONS.length) * 100}%`;
+  progressLabel.textContent = `Câu ${current + 1} / ${QUESTIONS.length}`;
+  prevBtn.style.visibility = current === 0 ? 'hidden' : 'visible';
+  nextBtn.disabled = answers[current] === null;
+  nextBtn.textContent = current === QUESTIONS.length - 1 ? 'Xem kết quả' : 'Câu tiếp theo →';
+
+  questionCard.classList.remove('is-animating');
+  void questionCard.offsetWidth; // trigger reflow để chạy lại animation
+  questionCard.classList.add('is-animating');
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  introSection.style.display = 'none';
+  quizSection.style.display = 'block';
+  renderQuestion();
+});
+
+prevBtn.addEventListener('click', () => {
+  if (current > 0) { current--; renderQuestion(); }
+});
+
+nextBtn.addEventListener('click', () => {
+  if (answers[current] === null) return;
+  if (current < QUESTIONS.length - 1) {
+    current++;
+    renderQuestion();
+  } else {
+    submitQuiz();
+  }
 });
 
 const RESULT_CONFIG = {
@@ -163,22 +268,15 @@ function classify(score) {
   return 'do';
 }
 
-document.getElementById('radar-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = document.getElementById('submit-btn');
-  btn.disabled = true;
-  btn.textContent = 'Đang xử lý…';
+function submitQuiz() {
+  nextBtn.disabled = true;
+  nextBtn.textContent = 'Đang xử lý…';
 
-  let score = 0;
-  QUESTIONS.forEach((_, i) => {
-    const val = document.querySelector(`input[name="q${i}"]:checked`);
-    score += val ? parseInt(val.value, 10) : 0;
-  });
-
+  const score = answers.reduce((sum, v) => sum + (v || 0), 0);
   const level = classify(score);
   const cfg = RESULT_CONFIG[level];
 
-  document.getElementById('quiz-section').style.display = 'none';
+  quizSection.style.display = 'none';
   const resultSection = document.getElementById('result-section');
   resultSection.style.display = 'block';
   document.getElementById('result-badge').innerHTML =
@@ -189,19 +287,18 @@ document.getElementById('radar-form').addEventListener('submit', async (e) => {
 
   // Đồng bộ ẩn danh lên Firestore — KHÔNG gửi kèm bất kỳ thông tin định danh nào.
   const statusEl = document.getElementById('sync-status');
-  try {
-    await db.collection('radar_results').add({
-      score: score,
-      level: level,                       // 'xanh' | 'vang' | 'do'
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      sessionRef: duckAnonId(),           // mã phiên ngẫu nhiên, không định danh cá nhân
-    });
+  db.collection('radar_results').add({
+    score: score,
+    level: level,                       // 'xanh' | 'vang' | 'do'
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    sessionRef: duckAnonId(),           // mã phiên ngẫu nhiên, không định danh cá nhân
+  }).then(() => {
     statusEl.textContent = 'Đã ghi nhận kết quả (ẩn danh) phục vụ thống kê nghiên cứu.';
-  } catch (err) {
+  }).catch(err => {
     console.error('Lỗi đồng bộ Firestore:', err);
     statusEl.textContent = 'Kết quả của bạn vẫn hiển thị bình thường, nhưng chưa đồng bộ được lên hệ thống thống kê.';
-  }
-});
+  });
+}
 </script>
 </body>
 </html>

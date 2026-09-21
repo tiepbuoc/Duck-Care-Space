@@ -8,9 +8,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦆</text></svg>">
 <style>
+  /* ---------- Filter bar ---------- */
+  .filter-bar {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .filter-bar__search { flex: 2 1 260px; position: relative; }
+  .filter-bar__search input { padding-left: 42px; }
+  .filter-bar__search i { position:absolute; left:16px; top:50%; transform:translateY(-50%); color: var(--ink-soft); }
+  .filter-bar__select { flex: 1 1 180px; }
+
+  /* ---------- Wall grid ---------- */
   .wall-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -18,23 +30,99 @@
   }
   @media (max-width: 760px) { .wall-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 520px) { .wall-grid { grid-template-columns: 1fr; } }
-  .note-card {
+
+  .wall-card {
     background: var(--cream);
     border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 16px;
-    font-size: 0.92rem;
+    border-radius: 16px;
+    padding: 18px;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--font-body);
+    display: flex; flex-direction: column; gap: 10px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .wall-card:hover, .wall-card:focus-visible { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
+  .wall-card__top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .wall-card__likes { display:flex; align-items:center; gap:6px; font-size:0.85rem; color: var(--coral-deep); }
+  .wall-card__likes i { font-size: 0.85rem; }
+  .wall-card__title { font-family: var(--font-display); font-size: 1.05rem; color: var(--ink); margin: 0; }
+  .wall-card__snippet {
+    font-size: 0.88rem; color: var(--ink-soft); margin: 0;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .wall-empty { text-align:center; color: var(--ink-soft); padding: 50px 20px; grid-column: 1 / -1; }
+
+  /* ---------- Floating add button ---------- */
+  .fab {
+    position: fixed;
+    right: 20px;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    background: var(--butter);
+    color: var(--ink);
+    border: none;
+    font-size: 1.5rem;
+    box-shadow: 0 10px 26px -8px rgba(47,72,88,0.45);
+    cursor: pointer;
+    z-index: 50;
+    display:flex; align-items:center; justify-content:center;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .fab:hover { background: var(--butter-deep); transform: scale(1.05); }
+  .fab:active { transform: scale(0.95); }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(47,72,88,0.45);
+    backdrop-filter: blur(3px);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 20px;
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    z-index: 100;
+  }
+  .modal-overlay.is-open { display: flex; }
+  .modal-box {
+    background: var(--cream);
+    border-radius: 22px;
+    padding: 30px;
+    max-width: 480px;
+    width: 100%;
+    max-height: 86vh;
+    overflow-y: auto;
     position: relative;
   }
-  .note-card::before {
-    content: "";
-    position: absolute; top: -6px; left: 20px;
-    width: 22px; height: 10px; background: var(--butter);
-    border-radius: 3px; opacity: 0.85;
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--white);
+    cursor: pointer; display:flex; align-items:center; justify-content:center;
+    color: var(--ink-soft); font-size: 0.95rem;
   }
-  .note-tag { font-size: 0.72rem; color: var(--ink-soft); margin-top: 10px; display:block; }
-  .wall-empty { text-align:center; color: var(--ink-soft); padding: 40px 0; }
-  select { width:100%; padding: 13px 16px; border-radius: 14px; border: 1px solid var(--line); font-family: var(--font-body); font-size: 1rem; background: var(--white); }
+  .modal-close:hover { background: var(--pond); }
+  .modal-box h3 { padding-right: 30px; }
+
+  .other-tag-input { margin-top: 10px; display: none; }
+  .other-tag-input.show { display: block; }
+
+  /* ---------- Detail modal ---------- */
+  .detail-tag { margin-bottom: 10px; }
+  .detail-message { white-space: pre-wrap; font-size: 0.98rem; color: var(--ink); line-height:1.7; margin: 16px 0 22px; }
+  .like-row { display:flex; align-items:center; gap:14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .like-btn {
+    display:flex; align-items:center; gap:8px;
+    border: 1px solid var(--line); background: var(--white);
+    padding: 10px 20px; border-radius: 999px; cursor: pointer;
+    font-family: var(--font-body); font-size: 0.95rem; font-weight:600; color: var(--ink);
+    transition: all 0.15s ease;
+  }
+  .like-btn i { color: var(--coral-deep); }
+  .like-btn.is-liked { background: #FBE4DE; border-color: var(--coral); }
+  .like-btn:active { transform: scale(0.96); }
 </style>
 </head>
 <body>
@@ -61,35 +149,7 @@
     <div class="wrap wrap--narrow">
       <p class="muted" style="margin-bottom:8px;">Module C — Connection</p>
       <h1 style="font-size:clamp(1.8rem,4vw,2.6rem);">Duck Whispers</h1>
-      <p>Có những điều khó nói thành lời trực tiếp. Viết nó ra đây — hoàn toàn ẩn danh. Sau khi được kiểm duyệt, một số dòng tâm sự sẽ xuất hiện ở Bảng sẻ chia bên dưới để nhắc mọi người rằng không ai đơn độc.</p>
-    </div>
-  </section>
-
-  <!-- ---------- Form ---------- -->
-  <section class="section section--tight">
-    <div class="wrap wrap--narrow">
-      <form id="whisper-form" class="card">
-        <h3 class="mt-0">Gửi một dòng tâm sự</h3>
-        <div style="margin-bottom:16px;">
-          <label for="whisper-tag">Chủ đề (không bắt buộc)</label>
-          <select id="whisper-tag">
-            <option value="Áp lực điểm số">Áp lực điểm số</option>
-            <option value="Kỳ vọng gia đình">Kỳ vọng gia đình</option>
-            <option value="Mối quan hệ bạn bè">Mối quan hệ bạn bè</option>
-            <option value="Áp lực bản thân">Áp lực với chính mình</option>
-            <option value="Khác">Khác</option>
-          </select>
-        </div>
-        <div>
-          <label for="whisper-message">Điều bạn muốn gửi đi</label>
-          <textarea id="whisper-message" rows="5" maxlength="800" placeholder="Không cần giới thiệu bạn là ai. Viết bằng ngôn ngữ của riêng bạn…" required></textarea>
-        </div>
-        <div class="row" style="justify-content:space-between; margin-top:16px; align-items:center;">
-          <span class="muted" id="char-count" style="font-size:0.8rem;">0 / 800</span>
-          <button type="submit" class="btn btn--primary" id="whisper-submit">Gửi ẩn danh</button>
-        </div>
-        <p class="muted" id="whisper-status" style="margin-top:12px; font-size:0.85rem;"></p>
-      </form>
+      <p>Có những điều khó nói thành lời trực tiếp. Bấm nút <strong>+</strong> ở góc màn hình để gửi đi một dòng tâm sự — hoàn toàn ẩn danh. Sau khi được kiểm duyệt, nó có thể xuất hiện ở Bảng sẻ chia dưới đây, để nhắc mọi người rằng không ai đơn độc.</p>
     </div>
   </section>
 
@@ -98,6 +158,19 @@
     <div class="wrap">
       <h2 class="center" style="margin-bottom:6px;">Bảng sẻ chia</h2>
       <p class="center" style="margin:0 auto 28px;">Những dòng tâm sự đã được duyệt — để bạn biết, ai đó cũng đang cảm thấy như vậy.</p>
+
+      <div class="filter-bar">
+        <div class="filter-bar__search">
+          <i class="fas fa-magnifying-glass"></i>
+          <input type="text" id="search-input" placeholder="Tìm theo tiêu đề hoặc nội dung…">
+        </div>
+        <div class="filter-bar__select">
+          <select id="tag-filter">
+            <option value="">Tất cả chủ đề</option>
+          </select>
+        </div>
+      </div>
+
       <div class="wall-grid" id="wall-grid">
         <p class="wall-empty">Đang tải bảng sẻ chia…</p>
       </div>
@@ -109,39 +182,119 @@
   <div class="wrap"><p style="margin:0;">Duck Care Space · Duck Whispers không thay thế hỗ trợ chuyên môn. Nếu bạn đang gặp nguy hiểm, hãy tìm người lớn tin tưởng ngay lập tức.</p></div>
 </footer>
 
+<!-- ---------- Floating add button ---------- -->
+<button class="fab" id="fab-add" aria-label="Gửi một dòng tâm sự">
+  <i class="fas fa-plus"></i>
+</button>
+
+<!-- ---------- Modal: Gửi tâm sự ---------- -->
+<div class="modal-overlay" id="add-overlay">
+  <div class="modal-box">
+    <button class="modal-close" id="add-close" aria-label="Đóng">✕</button>
+    <h3 class="mt-0">Gửi một dòng tâm sự</h3>
+    <form id="whisper-form" class="stack">
+      <div>
+        <label for="whisper-tag">Chủ đề (không bắt buộc)</label>
+        <select id="whisper-tag">
+          <option value="">Không chọn</option>
+          <option value="Áp lực điểm số">Áp lực điểm số</option>
+          <option value="Kỳ vọng gia đình">Kỳ vọng gia đình</option>
+          <option value="Mối quan hệ bạn bè">Mối quan hệ bạn bè</option>
+          <option value="Áp lực bản thân">Áp lực với chính mình</option>
+          <option value="__other__">Khác…</option>
+        </select>
+        <input type="text" id="whisper-tag-other" class="other-tag-input" placeholder="Nhập chủ đề của bạn…" maxlength="40">
+      </div>
+      <div>
+        <label for="whisper-title">Tiêu đề</label>
+        <input type="text" id="whisper-title" maxlength="120" placeholder="Một dòng ngắn gọn…" required>
+      </div>
+      <div>
+        <label for="whisper-message">Nội dung</label>
+        <textarea id="whisper-message" rows="5" maxlength="800" placeholder="Viết bằng ngôn ngữ của riêng bạn…" required></textarea>
+        <span class="muted" id="char-count" style="font-size:0.8rem;">0 / 800</span>
+      </div>
+      <button type="submit" class="btn btn--primary btn--wide" id="whisper-submit">Gửi ẩn danh</button>
+      <p class="muted" id="whisper-status" style="font-size:0.85rem; text-align:center;"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ---------- Modal: Xem chi tiết ---------- -->
+<div class="modal-overlay" id="detail-overlay">
+  <div class="modal-box">
+    <button class="modal-close" id="detail-close" aria-label="Đóng">✕</button>
+    <span class="pill pill--approved detail-tag" id="detail-tag" style="display:none;"></span>
+    <h3 class="mt-0" id="detail-title"></h3>
+    <div class="detail-message" id="detail-message"></div>
+    <div class="like-row">
+      <button class="like-btn" id="like-btn">
+        <i class="fa-heart far" id="like-icon"></i>
+        <span id="like-count">0</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
 <script src="assets/js/firebase-config.js"></script>
 <script src="assets/js/app.js"></script>
 <script>
+/* ---------------- Modal open/close helpers ---------------- */
+function openModal(id) { document.getElementById(id).classList.add('is-open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('is-open'); }
+
+document.getElementById('fab-add').addEventListener('click', () => openModal('add-overlay'));
+document.getElementById('add-close').addEventListener('click', () => closeModal('add-overlay'));
+document.getElementById('detail-close').addEventListener('click', () => closeModal('detail-overlay'));
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('is-open'); });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.is-open').forEach(o => o.classList.remove('is-open'));
+});
+
+/* ---------------- Add form ---------------- */
+const tagSelect = document.getElementById('whisper-tag');
+const tagOther = document.getElementById('whisper-tag-other');
+tagSelect.addEventListener('change', () => {
+  tagOther.classList.toggle('show', tagSelect.value === '__other__');
+});
+
 const msgEl = document.getElementById('whisper-message');
 const charCount = document.getElementById('char-count');
-msgEl.addEventListener('input', () => {
-  charCount.textContent = `${msgEl.value.length} / 800`;
-});
+msgEl.addEventListener('input', () => { charCount.textContent = `${msgEl.value.length} / 800`; });
 
 document.getElementById('whisper-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('whisper-submit');
   const status = document.getElementById('whisper-status');
+  const title = document.getElementById('whisper-title').value.trim();
   const message = msgEl.value.trim();
-  if (!message) return;
+  let tag = tagSelect.value;
+  if (tag === '__other__') tag = tagOther.value.trim();
+  if (!title || !message) return;
 
   btn.disabled = true;
   btn.textContent = 'Đang gửi…';
 
   try {
     await db.collection('whispers').add({
+      title: title,
       message: message,
-      tag: document.getElementById('whisper-tag').value,
+      tag: tag,
       status: 'pending', // chờ admin duyệt trước khi hiện lên Bảng sẻ chia
+      likeCount: 0,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       sessionRef: duckAnonId(),
     });
     document.getElementById('whisper-form').reset();
+    tagOther.classList.remove('show');
     charCount.textContent = '0 / 800';
     status.textContent = '🕊️ Đã gửi. Cảm ơn bạn đã tin tưởng chia sẻ — dòng tâm sự sẽ được kiểm duyệt trước khi hiển thị công khai.';
+    setTimeout(() => { closeModal('add-overlay'); status.textContent = ''; }, 2600);
   } catch (err) {
     console.error('Lỗi gửi whisper:', err);
     status.textContent = 'Có lỗi khi gửi. Vui lòng thử lại sau ít phút.';
@@ -151,41 +304,162 @@ document.getElementById('whisper-form').addEventListener('submit', async (e) => 
   }
 });
 
-/* ---------------- Wall of Empathy ---------------- */
+/* ---------------- Wall of Empathy: load, filter, search ---------------- */
+let allWhispers = [];
+
 async function loadWall() {
   const grid = document.getElementById('wall-grid');
   try {
     const snap = await db.collection('whispers')
       .where('status', '==', 'approved')
       .orderBy('createdAt', 'desc')
-      .limit(30)
+      .limit(60)
       .get();
 
-    if (snap.empty) {
-      grid.innerHTML = '<p class="wall-empty">Chưa có dòng tâm sự nào được duyệt — hãy quay lại sau nhé.</p>';
-      return;
-    }
-    grid.innerHTML = '';
-    snap.forEach(doc => {
-      const d = doc.data();
-      const card = document.createElement('div');
-      card.className = 'note-card';
-      card.innerHTML = `
-        <div>${escapeHtml(d.message || '')}</div>
-        ${d.tag ? `<span class="note-tag">#${escapeHtml(d.tag)}</span>` : ''}
-      `;
-      grid.appendChild(card);
-    });
+    allWhispers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    buildTagFilterOptions();
+    applyFilters();
   } catch (err) {
     console.error('Lỗi tải bảng sẻ chia:', err);
     grid.innerHTML = '<p class="wall-empty">Chưa thể tải bảng sẻ chia lúc này.</p>';
   }
 }
+
+function buildTagFilterOptions() {
+  const select = document.getElementById('tag-filter');
+  const usedTags = [...new Set(allWhispers.map(w => w.tag).filter(Boolean))];
+  select.innerHTML = '<option value="">Tất cả chủ đề</option>';
+  usedTags.sort().forEach(tag => {
+    const opt = document.createElement('option');
+    opt.value = tag; opt.textContent = tag;
+    select.appendChild(opt);
+  });
+}
+
+function applyFilters() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const tag = document.getElementById('tag-filter').value;
+
+  const filtered = allWhispers.filter(w => {
+    const matchesTag = !tag || w.tag === tag;
+    const matchesQuery = !q ||
+      (w.title || '').toLowerCase().includes(q) ||
+      (w.message || '').toLowerCase().includes(q);
+    return matchesTag && matchesQuery;
+  });
+  renderWall(filtered);
+}
+
+document.getElementById('search-input').addEventListener('input', applyFilters);
+document.getElementById('tag-filter').addEventListener('change', applyFilters);
+
+function renderWall(items) {
+  const grid = document.getElementById('wall-grid');
+  if (!items.length) {
+    grid.innerHTML = allWhispers.length
+      ? '<p class="wall-empty">Không tìm thấy tâm sự nào khớp với bộ lọc.</p>'
+      : '<p class="wall-empty">Chưa có dòng tâm sự nào được duyệt — hãy quay lại sau nhé.</p>';
+    return;
+  }
+  grid.innerHTML = '';
+  items.forEach(item => {
+    const card = document.createElement('button');
+    card.className = 'wall-card';
+    card.innerHTML = `
+      <div class="wall-card__top">
+        <span class="wall-card__likes"><i class="fas fa-heart"></i> ${item.likeCount || 0}</span>
+        ${item.tag ? `<span class="pill pill--approved">${escapeHtml(item.tag)}</span>` : ''}
+      </div>
+      <div class="wall-card__title">${escapeHtml(item.title || '(Không có tiêu đề)')}</div>
+      <p class="wall-card__snippet">${escapeHtml(item.message || '')}</p>
+    `;
+    card.addEventListener('click', () => openDetail(item));
+    grid.appendChild(card);
+  });
+}
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
 }
+
+/* ---------------- Detail modal + likes ---------------- */
+let currentDetailId = null;
+
+async function openDetail(item) {
+  currentDetailId = item.id;
+  document.getElementById('detail-title').textContent = item.title || '(Không có tiêu đề)';
+  document.getElementById('detail-message').textContent = item.message || '';
+  const tagEl = document.getElementById('detail-tag');
+  if (item.tag) { tagEl.textContent = item.tag; tagEl.style.display = 'inline-block'; }
+  else { tagEl.style.display = 'none'; }
+  document.getElementById('like-count').textContent = item.likeCount || 0;
+
+  openModal('detail-overlay');
+
+  // Kiểm tra trạng thái "đã tim chưa" của trình duyệt này
+  const likeBtn = document.getElementById('like-btn');
+  likeBtn.disabled = true;
+  try {
+    const likeDoc = await db.collection('whispers').doc(item.id)
+      .collection('likes').doc(duckLikerId()).get();
+    setLikedUI(likeDoc.exists);
+  } catch (e) {
+    console.warn('Không kiểm tra được trạng thái tim:', e.message);
+  } finally {
+    likeBtn.disabled = false;
+  }
+}
+
+function setLikedUI(liked) {
+  const likeBtn = document.getElementById('like-btn');
+  const likeIcon = document.getElementById('like-icon');
+  likeBtn.classList.toggle('is-liked', liked);
+  likeIcon.className = liked ? 'fa-heart fas' : 'fa-heart far';
+}
+
+document.getElementById('like-btn').addEventListener('click', async () => {
+  if (!currentDetailId) return;
+  const likeBtn = document.getElementById('like-btn');
+  likeBtn.disabled = true;
+
+  const whisperRef = db.collection('whispers').doc(currentDetailId);
+  const likeRef = whisperRef.collection('likes').doc(duckLikerId());
+
+  try {
+    const newLiked = await db.runTransaction(async (tx) => {
+      const likeSnap = await tx.get(likeRef);
+      const whisperSnap = await tx.get(whisperRef);
+      const currentCount = (whisperSnap.data() && whisperSnap.data().likeCount) || 0;
+
+      if (likeSnap.exists) {
+        tx.delete(likeRef);
+        tx.update(whisperRef, { likeCount: Math.max(0, currentCount - 1) });
+        return false;
+      } else {
+        tx.set(likeRef, { createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        tx.update(whisperRef, { likeCount: currentCount + 1 });
+        return true;
+      }
+    });
+
+    setLikedUI(newLiked);
+    const newCount = parseInt(document.getElementById('like-count').textContent, 10) + (newLiked ? 1 : -1);
+    document.getElementById('like-count').textContent = Math.max(0, newCount);
+
+    // Cập nhật số tim ngay trên thẻ ngoài Bảng sẻ chia + trong bộ nhớ tạm
+    const item = allWhispers.find(w => w.id === currentDetailId);
+    if (item) item.likeCount = Math.max(0, newCount);
+    applyFilters();
+  } catch (err) {
+    console.error('Lỗi khi thả tim:', err);
+    alert('Không thể cập nhật lượt tim lúc này, vui lòng thử lại.');
+  } finally {
+    likeBtn.disabled = false;
+  }
+});
+
 loadWall();
 </script>
 </body>

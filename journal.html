@@ -13,26 +13,33 @@
 <style>
   .progress-track { height: 10px; border-radius: 999px; background: var(--pond-deep); overflow: hidden; margin: 14px 0 6px; }
   .progress-fill { height: 100%; background: var(--butter); transition: width 0.4s ease; }
-  .day-list { display: flex; flex-direction: column; gap: 10px; }
-  .day-card {
-    display: flex; gap: 14px; align-items: flex-start;
-    background: var(--cream); border: 1px solid var(--line); border-radius: 16px;
-    padding: 16px 18px;
+
+  .day-dots { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin: 18px 0 26px; }
+  .day-dot {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--white);
+    font-size: 0.78rem; color: var(--ink-soft); cursor: pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: all 0.15s ease;
   }
-  .day-card.is-done { background: #F3EFD9; border-color: var(--butter-deep); }
-  .day-check {
-    width: 26px; height: 26px; flex-shrink:0; margin-top:2px;
-    border-radius: 8px; border: 1.5px solid var(--line); background: var(--white);
-    display: flex; align-items:center; justify-content:center; cursor: pointer;
+  .day-dot.is-done { background: var(--butter); border-color: var(--butter-deep); color: var(--ink); font-weight:700; }
+  .day-dot.is-current { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .day-view { text-align:center; }
+  .day-view .day-num { font-family: var(--font-display); color: var(--butter-deep); font-size: 1rem; margin-bottom: 8px; }
+  .day-view .day-text { font-size: 1.2rem; max-width: 46ch; margin: 0 auto 22px; color: var(--ink); }
+  .day-check-big {
+    display:inline-flex; align-items:center; gap:10px;
+    padding: 13px 26px; border-radius: 999px; border: 1.5px solid var(--line);
+    background: var(--white); cursor:pointer; font-weight:600; font-size: 0.98rem;
+    transition: all 0.15s ease;
   }
-  .day-check.checked { background: var(--butter); border-color: var(--butter-deep); }
-  .day-num { font-family: var(--font-display); color: var(--butter-deep); font-size: 0.85rem; margin-bottom: 2px; }
-  .day-text { font-weight: 500; }
+  .day-check-big.is-done { background: var(--lily); border-color: var(--lily-deep); color:#234a2b; }
   .day-note {
-    margin-top: 8px; width: 100%; font-size: 0.88rem; padding: 8px 10px; border-radius: 10px;
-    display:none;
+    margin-top: 22px; width: 100%; font-size: 0.92rem; text-align:left;
   }
-  .day-card.is-done .day-note { display: block; }
+  .day-nav { display:flex; justify-content:space-between; align-items:center; margin-top:28px; }
+  .day-nav .btn:disabled { opacity: 0.35; }
   .reset-row { margin-top: 28px; text-align:center; }
 </style>
 </head>
@@ -78,7 +85,25 @@
 
   <section class="section">
     <div class="wrap wrap--narrow">
-      <div class="day-list" id="day-list"></div>
+      <div class="day-dots" id="day-dots"></div>
+
+      <div class="card">
+        <div class="day-view">
+          <div class="day-num" id="day-num">Ngày 1 / 14</div>
+          <div class="day-text" id="day-text"></div>
+          <button class="day-check-big" id="day-check-btn">
+            <span id="day-check-icon">○</span>
+            <span id="day-check-label">Đánh dấu đã hoàn thành</span>
+          </button>
+          <textarea class="day-note" id="day-note" rows="3" placeholder="Ghi chú nhanh cho ngày này (không bắt buộc)…"></textarea>
+        </div>
+
+        <div class="day-nav">
+          <button class="btn btn--ghost" id="day-prev">← Ngày trước</button>
+          <button class="btn btn--ghost" id="day-next">Ngày tiếp theo →</button>
+        </div>
+      </div>
+
       <div class="reset-row">
         <button class="btn btn--ghost" id="reset-btn">Đặt lại toàn bộ tiến độ</button>
       </div>
@@ -124,58 +149,79 @@ function saveProgress(data) {
 }
 
 let progress = loadProgress();
+let currentDay = firstIncompleteDay();
+
+function firstIncompleteDay() {
+  for (let d = 1; d <= HABITS.length; d++) {
+    if (!progress[d] || !progress[d].done) return d;
+  }
+  return HABITS.length; // tất cả đã xong => dừng ở ngày cuối
+}
+
+function renderDots() {
+  const dots = document.getElementById('day-dots');
+  dots.innerHTML = '';
+  for (let d = 1; d <= HABITS.length; d++) {
+    const done = progress[d] && progress[d].done;
+    const btn = document.createElement('button');
+    btn.className = 'day-dot' + (done ? ' is-done' : '') + (d === currentDay ? ' is-current' : '');
+    btn.textContent = done ? '✓' : d;
+    btn.setAttribute('aria-label', `Đi tới ngày ${d}`);
+    btn.addEventListener('click', () => { currentDay = d; render(); });
+    dots.appendChild(btn);
+  }
+}
 
 function render() {
-  const list = document.getElementById('day-list');
-  list.innerHTML = '';
-  HABITS.forEach((text, i) => {
-    const day = i + 1;
-    const entry = progress[day] || { done: false, note: '' };
-    const card = document.createElement('div');
-    card.className = 'day-card' + (entry.done ? ' is-done' : '');
-    card.innerHTML = `
-      <button class="day-check ${entry.done ? 'checked' : ''}" data-day="${day}" aria-pressed="${entry.done}" aria-label="Đánh dấu ngày ${day} hoàn thành">
-        ${entry.done ? '✓' : ''}
-      </button>
-      <div style="flex:1;">
-        <div class="day-num">Ngày ${day}</div>
-        <div class="day-text">${text}</div>
-        <textarea class="day-note" data-day="${day}" rows="2" placeholder="Ghi chú nhanh (không bắt buộc)…">${entry.note || ''}</textarea>
-      </div>
-    `;
-    list.appendChild(card);
-  });
+  renderDots();
 
-  list.querySelectorAll('.day-check').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const day = btn.dataset.day;
-      const entry = progress[day] || { done: false, note: '' };
-      entry.done = !entry.done;
-      progress[day] = entry;
-      saveProgress(progress);
-      render();
-    });
-  });
-  list.querySelectorAll('.day-note').forEach(ta => {
-    ta.addEventListener('input', () => {
-      const day = ta.dataset.day;
-      const entry = progress[day] || { done: false, note: '' };
-      entry.note = ta.value;
-      progress[day] = entry;
-      saveProgress(progress);
-    });
-  });
+  const entry = progress[currentDay] || { done: false, note: '' };
+  document.getElementById('day-num').textContent = `Ngày ${currentDay} / ${HABITS.length}`;
+  document.getElementById('day-text').textContent = HABITS[currentDay - 1];
+  document.getElementById('day-note').value = entry.note || '';
+
+  const checkBtn = document.getElementById('day-check-btn');
+  checkBtn.classList.toggle('is-done', !!entry.done);
+  document.getElementById('day-check-icon').textContent = entry.done ? '✓' : '○';
+  document.getElementById('day-check-label').textContent = entry.done ? 'Đã hoàn thành' : 'Đánh dấu đã hoàn thành';
+
+  document.getElementById('day-prev').disabled = currentDay === 1;
+  document.getElementById('day-next').disabled = currentDay === HABITS.length;
 
   const doneCount = Object.values(progress).filter(e => e.done).length;
   document.getElementById('progress-text').textContent = `${doneCount} / 14 ngày`;
   document.getElementById('progress-fill').style.width = (doneCount / 14 * 100) + '%';
 }
+
+document.getElementById('day-check-btn').addEventListener('click', () => {
+  const entry = progress[currentDay] || { done: false, note: '' };
+  entry.done = !entry.done;
+  progress[currentDay] = entry;
+  saveProgress(progress);
+  render();
+});
+
+document.getElementById('day-note').addEventListener('input', (e) => {
+  const entry = progress[currentDay] || { done: false, note: '' };
+  entry.note = e.target.value;
+  progress[currentDay] = entry;
+  saveProgress(progress);
+});
+
+document.getElementById('day-prev').addEventListener('click', () => {
+  if (currentDay > 1) { currentDay--; render(); }
+});
+document.getElementById('day-next').addEventListener('click', () => {
+  if (currentDay < HABITS.length) { currentDay++; render(); }
+});
+
 render();
 
 document.getElementById('reset-btn').addEventListener('click', () => {
   if (confirm('Bạn chắc chắn muốn xoá toàn bộ tiến độ 14 ngày?')) {
     progress = {};
     saveProgress(progress);
+    currentDay = 1;
     render();
   }
 });

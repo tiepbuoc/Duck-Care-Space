@@ -2,6 +2,8 @@
 
 Nền tảng can thiệp số cho dự án **Duck Care–SEGC**. Web tĩnh (HTML/CSS/JS thuần, không cần build) host trên **GitHub Pages**, toàn bộ phần "động" (lưu kết quả test, hòm thư ẩn danh, tài khoản Admin, thống kê) chạy trên **Firebase** (Firestore + Authentication).
 
+> ⚠️ **Nếu bạn đã publish `firestore.rules` từ trước**: Duck Whispers vừa được bổ sung trường `title` và tính năng thả tim (`likeCount` + subcollection `likes`). Bạn **cần publish lại** nội dung `firestore.rules` mới nhất trong Firebase Console → Firestore → Rules, nếu không tính năng gửi tâm sự và thả tim sẽ báo lỗi quyền truy cập.
+
 ```
 duck-care-space/
 ├─ index.html        Trang chủ

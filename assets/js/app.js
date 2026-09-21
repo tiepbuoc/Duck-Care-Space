@@ -29,6 +29,19 @@ function duckAnonId() {
   return id;
 }
 
+// Mã định danh bền vững hơn (lưu ở Local Storage thay vì Session Storage),
+// dùng riêng cho tính năng "thả tim" ở Duck Whispers — để một trình duyệt
+// chỉ tim được 1 lần trên mỗi bài, kể cả khi đóng rồi mở lại trang.
+// Đây vẫn là mã ngẫu nhiên, không gắn với danh tính thật của người dùng.
+function duckLikerId() {
+  let id = localStorage.getItem('duck_liker_id');
+  if (!id) {
+    id = 'liker-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    localStorage.setItem('duck_liker_id', id);
+  }
+  return id;
+}
+
 // Ghi nhận 1 lượt xem trang vào Firestore (site_stats/visits) để Admin
 // Dashboard hiển thị "Tổng lượt truy cập". Không gắn IP hay thông tin cá nhân —
 // chỉ tăng một bộ đếm tổng và một bộ đếm theo trang. Chạy 1 lần / phiên trình

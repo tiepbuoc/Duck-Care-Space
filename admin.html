@@ -259,6 +259,7 @@ function renderPending(items) {
         <span class="pill pill--pending">Chờ duyệt</span>
         <span class="muted" style="font-size:0.78rem;">${item.tag || ''}</span>
       </div>
+      <h4 style="margin:0 0 6px;">${escapeHtml(item.title || '(Không có tiêu đề)')}</h4>
       <div>${escapeHtml(item.message || '')}</div>
       <div class="msg-card__actions">
         <button class="btn btn--primary btn-sm" data-approve="${item.id}">Duyệt & hiện lên Bảng sẻ chia</button>
@@ -281,8 +282,9 @@ function renderApproved(items) {
     card.innerHTML = `
       <div class="msg-card__top">
         <span class="pill pill--approved">Đã duyệt · đang hiển thị</span>
-        <span class="muted" style="font-size:0.78rem;">${item.tag || ''}</span>
+        <span class="muted" style="font-size:0.78rem;">${item.tag || ''} · ❤ ${item.likeCount || 0}</span>
       </div>
+      <h4 style="margin:0 0 6px;">${escapeHtml(item.title || '(Không có tiêu đề)')}</h4>
       <div>${escapeHtml(item.message || '')}</div>
       <div class="msg-card__actions">
         <button class="btn btn--ghost btn-sm" data-hide="${item.id}">Gỡ khỏi Bảng sẻ chia</button>
