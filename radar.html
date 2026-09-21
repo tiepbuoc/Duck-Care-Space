@@ -176,7 +176,9 @@ const progressFill = document.getElementById('progress-fill');
 const progressLabel = document.getElementById('progress-label');
 const questionCard = document.getElementById('question-card');
 
-function renderQuestion() {
+// `animate` = true khi đây là lần hiện ra của MỘT CÂU MỚI (chuyển câu, bắt đầu bài),
+// = false khi chỉ đổi đáp án trong cùng một câu (không nên chạy lại animation).
+function renderQuestion(animate = true) {
   qText.textContent = `${current + 1}. ${QUESTIONS[current]}`;
   qOptions.innerHTML = '';
   qOptions.style.display = 'block';
@@ -184,15 +186,13 @@ function renderQuestion() {
   [1,2,3,4,5].forEach(v => {
     const row = document.createElement('label');
     row.className = 'q-option-row' + (answers[current] === v ? ' is-checked' : '');
+    row.dataset.value = v;
     row.innerHTML = `
       <input type="radio" name="current-q" value="${v}" ${answers[current] === v ? 'checked' : ''}>
       <span class="q-num">${v}</span>
       <span class="q-label">${SCALE_LABELS[v-1]}</span>
     `;
-    row.addEventListener('click', () => {
-      answers[current] = v;
-      renderQuestion();
-    });
+    row.addEventListener('click', () => selectAnswer(v));
     qOptions.appendChild(row);
   });
 
@@ -202,26 +202,43 @@ function renderQuestion() {
   nextBtn.disabled = answers[current] === null;
   nextBtn.textContent = current === QUESTIONS.length - 1 ? 'Xem kết quả' : 'Câu tiếp theo →';
 
-  questionCard.classList.remove('is-animating');
-  void questionCard.offsetWidth; // trigger reflow để chạy lại animation
-  questionCard.classList.add('is-animating');
+  if (animate) {
+    questionCard.classList.remove('is-animating');
+    void questionCard.offsetWidth; // trigger reflow để chạy lại animation
+    questionCard.classList.add('is-animating');
+  }
+}
+
+// Chỉ cập nhật trạng thái "đã chọn" trên các option hiện có trong DOM,
+// KHÔNG render lại toàn bộ card => không kích hoạt lại animation => hết nhấp nháy.
+function selectAnswer(v) {
+  answers[current] = v;
+
+  qOptions.querySelectorAll('.q-option-row').forEach(row => {
+    const isChecked = Number(row.dataset.value) === v;
+    row.classList.toggle('is-checked', isChecked);
+    const input = row.querySelector('input');
+    if (input) input.checked = isChecked;
+  });
+
+  nextBtn.disabled = false;
 }
 
 document.getElementById('start-btn').addEventListener('click', () => {
   introSection.style.display = 'none';
   quizSection.style.display = 'block';
-  renderQuestion();
+  renderQuestion(true);
 });
 
 prevBtn.addEventListener('click', () => {
-  if (current > 0) { current--; renderQuestion(); }
+  if (current > 0) { current--; renderQuestion(true); }
 });
 
 nextBtn.addEventListener('click', () => {
   if (answers[current] === null) return;
   if (current < QUESTIONS.length - 1) {
     current++;
-    renderQuestion();
+    renderQuestion(true);
   } else {
     submitQuiz();
   }
