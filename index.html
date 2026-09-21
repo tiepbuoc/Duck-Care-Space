@@ -56,11 +56,13 @@
               <stop offset="100%" stop-color="#BFDCD1" stop-opacity="0"/>
             </radialGradient>
           </defs>
-          <!-- gợn sóng nhẹ quanh vịt, canh giữa dưới thân -->
-          <ellipse cx="160" cy="150" rx="70" ry="24" fill="none" stroke="#C6DAD2" stroke-width="1.4" opacity="0.55"/>
-          <ellipse cx="160" cy="150" rx="96" ry="34" fill="none" stroke="#C6DAD2" stroke-width="1.2" opacity="0.32"/>
+          <!-- Sóng elip lan tỏa quanh vịt: 1 vòng chính + 2 vòng gợn theo sau, cùng chu kỳ 3.6s
+               với nhịp nhô lên/hạ xuống của vịt (xem .duck-ripple trong style.css) -->
+          <ellipse class="duck-ripple duck-ripple--1" cx="160" cy="150" rx="66" ry="22"/>
+          <ellipse class="duck-ripple duck-ripple--2" cx="160" cy="150" rx="66" ry="22"/>
+          <ellipse class="duck-ripple duck-ripple--3" cx="160" cy="150" rx="66" ry="22"/>
           <!-- bóng nước mềm ngay dưới thân vịt -->
-          <ellipse cx="160" cy="150" rx="112" ry="14" fill="url(#pond-shadow-gradient)"/>
+          <ellipse class="duck-shadow" cx="160" cy="150" rx="112" ry="14" fill="url(#pond-shadow-gradient)"/>
           <g transform="translate(20,20)">
             <g id="duck-swimmer">
               <!-- thân vịt -->

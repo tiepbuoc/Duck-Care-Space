@@ -2,7 +2,7 @@
 
 Nền tảng can thiệp số cho dự án **Duck Care–SEGC**. Web tĩnh (HTML/CSS/JS thuần, không cần build) host trên **GitHub Pages**, toàn bộ phần "động" (lưu kết quả test, hòm thư ẩn danh, tài khoản Admin, thống kê) chạy trên **Firebase** (Firestore + Authentication).
 
-> ⚠️ **Nếu bạn đã publish `firestore.rules` từ trước**: Duck Whispers vừa được bổ sung trường `title` và tính năng thả tim (`likeCount` + subcollection `likes`). Bạn **cần publish lại** nội dung `firestore.rules` mới nhất trong Firebase Console → Firestore → Rules, nếu không tính năng gửi tâm sự và thả tim sẽ báo lỗi quyền truy cập.
+> ⚠️ **Nếu bạn đã publish `firestore.rules` từ trước**: bản này bổ sung 2 collection mới — `visitors` (đếm người truy cập theo thiết bị) và `breathing_sessions` (đếm lượt tập thở). Bạn **cần publish lại** nội dung `firestore.rules` mới nhất trong Firebase Console → Firestore → Rules. Nếu bỏ qua, web vẫn chạy bình thường nhưng 2 số liệu mới sẽ không được ghi nhận (và Admin sẽ hiện "—" ở các thẻ tương ứng).
 
 ```
 duck-care-space/
@@ -14,6 +14,7 @@ duck-care-space/
 ├─ admin.html         Admin Dashboard (đăng nhập, thống kê, duyệt tâm sự)
 ├─ firestore.rules    Luật bảo mật Firestore — BẮT BUỘC phải publish luật này
 ├─ assets/
+│  ├─ audio/                 ← đặt rain.mp3, wave.mp3, chill.mp3 vào đây
 │  ├─ css/style.css
 │  ├─ js/app.js              tiện ích dùng chung (menu, đếm lượt truy cập)
 │  └─ js/firebase-config.js  ← FILE DUY NHẤT CẦN CHỈNH SỬA để kết nối Firebase
@@ -63,7 +64,12 @@ Xong phần này, vào `admin.html`, đăng nhập bằng email `admin@admin.com
 ## Phần 3 — Việc cần làm thêm trước khi bàn giao chính thức
 
 - **Logo trường**: mở `index.html`, tìm dòng có chú thích `CHÈN LOGO TRƯỜNG`, thay thẻ emoji 🦆 bằng `<img src="assets/img/logo-truong.png" alt="Logo trường">` và đặt file ảnh logo vào `assets/img/`.
-- **Âm thanh thư giãn** (module Hồ tĩnh lặng): hiện đang dùng âm thanh tạo trực tiếp bằng Web Audio API (mưa/sóng biển = tiếng ồn đã lọc, Alpha lofi = nhịp hai tai 10Hz) — không cần file mp3, không vướng bản quyền, chạy được ngay trên GitHub Pages. Nếu muốn thay bằng file âm thanh thật, có thể thêm thẻ `<audio>` trỏ tới file `.mp3` (bản quyền mở) đặt trong `assets/audio/` và chỉnh lại phần JS tương ứng trong `calm.html`.
+- **Âm thanh thư giãn** (module Hồ tĩnh lặng): trang `calm.html` phát 3 file mp3 nằm trong `assets/audio/`, mỗi file tự **lặp lại vô hạn** khi bật:
+  - `assets/audio/rain.mp3` → nút "Mưa rơi"
+  - `assets/audio/wave.mp3` → nút "Sóng biển"
+  - `assets/audio/chill.mp3` → nút "Nhạc chill"
+
+  Tên file phải đúng như trên (chữ thường). Nếu chưa có file, bấm nút sẽ hiện thông báo "Chưa tải được âm thanh" chứ không làm hỏng trang. Chỉ dùng âm thanh có bản quyền mở hoặc do nhóm tự sở hữu. Muốn đổi tên file, sửa đối tượng `SOUND_FILES` trong `calm.html`.
 - **Ngưỡng phân loại Duck Radar** (Xanh/Vàng/Đỏ): đang chia đều theo tổng điểm 8 câu hỏi × thang 1–5 (Xanh ≤18, Vàng 19–29, Đỏ ≥30) trong `radar.html`, hàm `classify()`. Nếu nhóm nghiên cứu có thang đo chuẩn hoá riêng (ví dụ dựa trên DASS-21 hay thang đo đã kiểm định), nên thay bằng thang đó để tăng độ tin cậy học thuật.
 - **Kiểm duyệt Duck Whispers**: mọi tâm sự gửi lên đều ở trạng thái "chờ duyệt" và **không tự động hiển thị công khai** — Admin phải vào `admin.html` → tab "Duyệt Duck Whispers" để duyệt từng tin trước khi nó xuất hiện ở Bảng sẻ chia. Nhóm vận hành nên phân công người kiểm duyệt thường xuyên, đặc biệt chú ý các tin có dấu hiệu cần hỗ trợ khẩn cấp để chuyển tiếp cho giáo viên/phòng tâm lý kịp thời — hệ thống này không thay thế con người trong các tình huống khẩn cấp.
 
@@ -73,11 +79,17 @@ Xong phần này, vào `admin.html`, đăng nhập bằng email `admin@admin.com
 
 Tất cả nằm trong `admin.html` sau khi đăng nhập:
 
-- **Tổng lượt truy cập** và lượt truy cập theo từng trang (`site_stats/visits` trên Firestore).
-- **Phân bổ mức độ stress** theo 3 mức Xanh/Vàng/Đỏ, số lượt làm Duck Radar (`radar_results`).
+- **Người truy cập**: mỗi thiết bị/trình duyệt = 1 người (collection `visitors`). Mã thiết bị là chuỗi ngẫu nhiên lưu trong trình duyệt, không gắn IP hay danh tính. Giới hạn: người xoá dữ liệu trình duyệt hoặc dùng chế độ ẩn danh sẽ bị tính là thiết bị mới.
+- **Tổng lượt xem trang** và lượt xem theo từng trang (`site_stats/visits`) — mỗi trang chỉ đếm 1 lần cho mỗi phiên trình duyệt.
+- **Phân bổ mức độ stress** Xanh/Vàng/Đỏ và số lượt làm Duck Radar (`radar_results`).
+- **Lượt tập thở**: mỗi lần bấm "Bắt đầu hít thở" ở Hồ tĩnh lặng tính 1 lượt (`breathing_sessions`).
 - **Số lượt gửi/đã duyệt Duck Whispers** (`whispers`).
 
-Muốn xuất số liệu thô ra Excel/CSV để phân tích sâu hơn: vào Firebase Console → Firestore Database → chọn collection → dùng nút **Export collection** (yêu cầu bật gói Blaze, có hạn mức miễn phí) hoặc copy thủ công từ giao diện Data với quy mô dữ liệu nhỏ của một trường học.
+### Xuất báo cáo Excel
+
+Bấm nút **⬇ Xuất báo cáo Excel** ở góc trên của Admin Dashboard để tải file `DuckCare_BaoCao_<ngày>.xlsx` (không cần bật gói Blaze). File gồm 7 sheet: *Tổng quan*, *Theo ngày*, *Duck Radar*, *Lượt tập thở*, *Duck Whispers*, *Người truy cập*, *Lượt xem theo trang*. Thời gian trong file theo giờ của máy đang xuất. File có **nội dung đầy đủ các tâm sự** (kể cả chưa duyệt/đã từ chối) nên cần bảo quản như dữ liệu nhạy cảm. Để xuất được, máy cần kết nối Internet tới `cdnjs.cloudflare.com` (thư viện SheetJS).
+
+Muốn xuất dữ liệu thô trực tiếp từ Firestore: Firebase Console → Firestore Database → chọn collection → **Export collection** (yêu cầu gói Blaze).
 
 ---
 

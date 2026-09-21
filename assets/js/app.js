@@ -42,21 +42,66 @@ function duckLikerId() {
   return id;
 }
 
+// Mã định danh THIẾT BỊ (lưu bền ở Local Storage) — dùng để đếm "số người truy
+// cập": mỗi thiết bị/trình duyệt = 1 người. Đây là chuỗi ngẫu nhiên, KHÔNG gắn
+// với IP, tên hay bất kỳ thông tin cá nhân nào. Nếu người dùng xoá dữ liệu trình
+// duyệt hoặc dùng chế độ ẩn danh, họ sẽ được tính là thiết bị mới.
+function duckDeviceId() {
+  try {
+    let id = localStorage.getItem('duck_device_id');
+    if (!id) {
+      id = 'dev-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      localStorage.setItem('duck_device_id', id);
+    }
+    return id;
+  } catch (e) {
+    return null; // trình duyệt chặn localStorage => không đếm được thiết bị
+  }
+}
+
 // Ghi nhận 1 lượt xem trang vào Firestore (site_stats/visits) để Admin
-// Dashboard hiển thị "Tổng lượt truy cập". Không gắn IP hay thông tin cá nhân —
+// Dashboard hiển thị "Tổng lượt xem trang". Không gắn IP hay thông tin cá nhân —
 // chỉ tăng một bộ đếm tổng và một bộ đếm theo trang. Chạy 1 lần / phiên trình
 // duyệt (dùng sessionStorage để tránh đếm trùng khi người dùng bấm qua lại).
 function trackPageView() {
   if (typeof db === 'undefined') return; // trang chưa nhúng Firebase
-  const flagKey = 'duck_view_logged_' + (window.location.pathname.split('/').pop() || 'index.html');
+  const page = window.location.pathname.split('/').pop() || 'index.html';
+  const flagKey = 'duck_view_logged_' + page;
   if (sessionStorage.getItem(flagKey)) return;
   sessionStorage.setItem(flagKey, '1');
 
-  const page = window.location.pathname.split('/').pop() || 'index.html';
-  const safeKey = page.replace(/\./g, '_'); // Firestore field path không nên chứa dấu chấm
+  const safeKey = page.replace(/\./g, '_'); // tên trường không nên chứa dấu chấm
+  // Lưu ý: dùng object lồng nhau { byPage: { tên_trang: +1 } } thay vì khoá dạng
+  // "byPage.tên_trang" — với set()+merge, khoá có dấu chấm sẽ bị coi là TÊN TRƯỜNG
+  // nguyên văn và bị Firestore Rules từ chối.
   db.collection('site_stats').doc('visits').set({
     count: firebase.firestore.FieldValue.increment(1),
-    [`byPage.${safeKey}`]: firebase.firestore.FieldValue.increment(1),
+    byPage: { [safeKey]: firebase.firestore.FieldValue.increment(1) },
   }, { merge: true }).catch(err => console.warn('Không ghi nhận được lượt truy cập:', err.message));
 }
-document.addEventListener('DOMContentLoaded', trackPageView);
+
+// Ghi nhận "người truy cập duy nhất": mỗi thiết bị chỉ tạo đúng 1 document
+// visitors/{deviceId} vào lần đầu tiên truy cập (Firestore Rules không cho sửa/xoá).
+// Cờ 'duck_device_registered' giúp các lần sau không gửi lại request.
+function trackUniqueVisitor() {
+  if (typeof db === 'undefined') return;
+  let registered = null;
+  try { registered = localStorage.getItem('duck_device_registered'); } catch (e) { return; }
+  if (registered) return;
+
+  const deviceId = duckDeviceId();
+  if (!deviceId) return;
+
+  const page = window.location.pathname.split('/').pop() || 'index.html';
+  db.collection('visitors').doc(deviceId).set({
+    firstSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    firstPage: page,
+  }).then(() => {
+    try { localStorage.setItem('duck_device_registered', '1'); } catch (e) {}
+  }).catch(err => console.warn('Không ghi nhận được người truy cập:', err.message));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  trackPageView();
+  trackUniqueVisitor();
+});

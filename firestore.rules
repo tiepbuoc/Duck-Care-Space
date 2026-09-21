@@ -67,6 +67,30 @@ service cloud.firestore {
       }
     }
 
+    // ---------- Người truy cập duy nhất (mỗi thiết bị = 1 document) ----------
+    // ID document = mã thiết bị ngẫu nhiên tạo ở trình duyệt (không phải IP/danh tính).
+    // Chỉ được TẠO 1 lần; không sửa/xoá được; chỉ admin đọc được.
+    match /visitors/{deviceId} {
+      allow create: if deviceId.size() <= 60
+                    && request.resource.data.keys().hasOnly(['firstSeen', 'firstPage'])
+                    && request.resource.data.firstSeen == request.time
+                    && request.resource.data.firstPage is string
+                    && request.resource.data.firstPage.size() <= 60;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------- Module E: lượt tập thở ----------
+    // Mỗi lần bấm "Bắt đầu hít thở" = 1 document ẩn danh.
+    match /breathing_sessions/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['createdAt', 'sessionRef'])
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.sessionRef is string
+                    && request.resource.data.sessionRef.size() <= 40;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // ---------- Danh sách admin ----------
     // Thêm thủ công trong Firebase Console: Firestore → collection "admins"
     // → tạo document có ID = UID của tài khoản Admin (copy từ tab Authentication).

@@ -16,7 +16,7 @@
   .admin-header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 28px; flex-wrap:wrap; gap:12px; }
   .login-card { max-width: 380px; margin: 80px auto; }
   @media (max-width: 480px) { .login-card { margin: 40px auto; } }
-  .stat-grid { display:grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
+  .stat-grid { display:grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 28px; }
   @media (max-width: 760px) { .stat-grid { grid-template-columns: repeat(2,1fr); } }
   @media (max-width: 420px) { .stat-grid { grid-template-columns: 1fr; } }
   .stat-card { background: var(--cream); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
@@ -36,6 +36,7 @@
   .msg-card__top { display:flex; justify-content:space-between; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
   .msg-card__actions { display:flex; gap:8px; margin-top:10px; }
   .btn-sm { padding: 7px 14px; font-size: 0.84rem; }
+  .admin-actions { display:flex; gap:10px; flex-wrap:wrap; }
   #error-box { color: var(--coral-deep); font-size: 0.88rem; margin-top:10px; min-height: 1em; }
 </style>
 </head>
@@ -69,12 +70,17 @@
       <h1 style="font-size:1.6rem; margin-bottom:2px;">🦆 Duck Care Space — Admin</h1>
       <p class="muted mt-0" id="admin-email" style="margin:0;"></p>
     </div>
-    <button class="btn btn--ghost" id="logout-btn">Đăng xuất</button>
+    <div class="admin-actions">
+      <button class="btn btn--primary" id="export-btn">⬇ Xuất báo cáo Excel</button>
+      <button class="btn btn--ghost" id="logout-btn">Đăng xuất</button>
+    </div>
   </div>
 
   <div class="stat-grid">
-    <div class="stat-card"><div class="num" id="stat-visits">–</div><div class="label">Tổng lượt truy cập</div></div>
+    <div class="stat-card"><div class="num" id="stat-visitors">–</div><div class="label">Người truy cập (mỗi thiết bị = 1 người)</div></div>
+    <div class="stat-card"><div class="num" id="stat-visits">–</div><div class="label">Tổng lượt xem trang</div></div>
     <div class="stat-card"><div class="num" id="stat-tests">–</div><div class="label">Lượt làm Duck Radar</div></div>
+    <div class="stat-card"><div class="num" id="stat-breath">–</div><div class="label">Lượt tập thở</div></div>
     <div class="stat-card"><div class="num" id="stat-whispers">–</div><div class="label">Lượt gửi Duck Whispers</div></div>
     <div class="stat-card"><div class="num" id="stat-pending">–</div><div class="label">Đang chờ duyệt</div></div>
   </div>
@@ -108,6 +114,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="assets/js/firebase-config.js"></script>
 <script>
 const loginView = document.getElementById('login-view');
@@ -178,19 +185,47 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 /* ---------------- Dashboard data ---------------- */
+// Dữ liệu thô đã tải về — dùng chung cho dashboard và xuất Excel.
+const adminData = { visits: { count: 0, byPage: {} }, visitors: [], radar: [], breathing: [], whispers: [] };
+const loadErrors = new Set();   // tên các nguồn dữ liệu tải lỗi (để cảnh báo khi xuất Excel)
+
 async function loadDashboard() {
-  loadVisitStats();
-  loadRadarStats();
-  loadWhispers();
+  await Promise.all([loadVisitStats(), loadRadarStats(), loadBreathingStats(), loadWhispers()]);
 }
 
 async function loadVisitStats() {
+  // Tổng lượt xem trang (site_stats/visits)
   try {
     const doc = await db.collection('site_stats').doc('visits').get();
     const data = doc.exists ? doc.data() : { count: 0 };
-    document.getElementById('stat-visits').textContent = data.count || 0;
+    adminData.visits = { count: data.count || 0, byPage: data.byPage || {} };
+    document.getElementById('stat-visits').textContent = adminData.visits.count;
+    loadErrors.delete('Lượt xem trang');
   } catch (e) {
     document.getElementById('stat-visits').textContent = '—';
+    loadErrors.add('Lượt xem trang');
+  }
+  // Người truy cập duy nhất: mỗi document trong "visitors" = 1 thiết bị
+  try {
+    const snap = await db.collection('visitors').get();
+    adminData.visitors = snap.docs.map(d => d.data());
+    document.getElementById('stat-visitors').textContent = snap.size;
+    loadErrors.delete('Người truy cập');
+  } catch (e) {
+    document.getElementById('stat-visitors').textContent = '—';
+    loadErrors.add('Người truy cập');
+  }
+}
+
+async function loadBreathingStats() {
+  try {
+    const snap = await db.collection('breathing_sessions').get();
+    adminData.breathing = snap.docs.map(d => d.data());
+    document.getElementById('stat-breath').textContent = snap.size;
+    loadErrors.delete('Lượt tập thở');
+  } catch (e) {
+    document.getElementById('stat-breath').textContent = '—';
+    loadErrors.add('Lượt tập thở');
   }
 }
 
@@ -203,6 +238,8 @@ const LEVEL_META = {
 async function loadRadarStats() {
   try {
     const snap = await db.collection('radar_results').get();
+    adminData.radar = snap.docs.map(d => d.data());
+    loadErrors.delete('Duck Radar');
     const counts = { xanh: 0, vang: 0, do: 0 };
     snap.forEach(d => { const lvl = d.data().level; if (counts[lvl] !== undefined) counts[lvl]++; });
     const total = snap.size;
@@ -224,6 +261,8 @@ async function loadRadarStats() {
     });
     if (!total) container.innerHTML = '<p class="muted">Chưa có dữ liệu Duck Radar.</p>';
   } catch (e) {
+    loadErrors.add('Duck Radar');
+    document.getElementById('stat-tests').textContent = '—';
     document.getElementById('level-bars').innerHTML = '<p class="muted">Không tải được dữ liệu (kiểm tra Firestore Rules).</p>';
   }
 }
@@ -231,6 +270,8 @@ async function loadRadarStats() {
 async function loadWhispers() {
   try {
     const snap = await db.collection('whispers').orderBy('createdAt', 'desc').get();
+    adminData.whispers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    loadErrors.delete('Duck Whispers');
     const pending = [];
     const approved = [];
     snap.forEach(d => {
@@ -245,6 +286,7 @@ async function loadWhispers() {
     renderPending(pending);
     renderApproved(approved);
   } catch (e) {
+    loadErrors.add('Duck Whispers');
     document.getElementById('pending-list').innerHTML = '<p class="muted">Không tải được dữ liệu (kiểm tra Firestore Rules).</p>';
   }
 }
@@ -311,6 +353,167 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+
+/* ---------------- Xuất báo cáo Excel ---------------- */
+// ---- REPORT BUILDER START ----
+const RADAR_LEVEL_LABEL = { xanh: 'Xanh', vang: 'Vàng', do: 'Đỏ' };
+const WHISPER_STATUS_LABEL = { approved: 'Đã duyệt', rejected: 'Từ chối', pending: 'Chờ duyệt' };
+
+function tsToDate(ts) {
+  if (!ts) return null;
+  if (typeof ts.toDate === 'function') return ts.toDate();
+  const d = new Date(ts);
+  return isNaN(d) ? null : d;
+}
+function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function dayKey(d) {
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function pageLabel(key) { return key.replace(/_html$/, '.html'); }
+
+// Đổi Date (giờ địa phương) sang số serial ngày của Excel. Tự tính thay vì để thư viện
+// chuyển đổi, vì thư viện có thể lệch vài chục giây ở một số múi giờ (trong đó có Việt Nam).
+function excelSerial(d) {
+  return (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds())
+          - Date.UTC(1899, 11, 30)) / 86400000;
+}
+
+// Tạo worksheet từ mảng 2 chiều; ô Date được ghi thành số + định dạng ngày giờ.
+function makeSheet(rows, widths, dateFormat) {
+  const dateCells = [];
+  const plain = rows.map((row, r) => row.map((v, c) => {
+    if (v instanceof Date) { dateCells.push({ r, c }); return excelSerial(v); }
+    return v;
+  }));
+  const ws = XLSX.utils.aoa_to_sheet(plain);
+  dateCells.forEach(({ r, c }) => {
+    const cell = ws[XLSX.utils.encode_cell({ r, c })];
+    if (cell) cell.z = dateFormat || 'dd/mm/yyyy hh:mm:ss';
+  });
+  ws['!cols'] = widths.map(w => ({ wch: w }));
+  return ws;
+}
+
+function buildReportWorkbook(data, now) {
+  now = now || new Date();
+  const { visits, visitors, radar, breathing, whispers } = data;
+  const wb = XLSX.utils.book_new();
+
+  // ----- Số liệu tổng hợp -----
+  const levelCount = { xanh: 0, vang: 0, do: 0 };
+  let scoreSum = 0;
+  radar.forEach(r => {
+    if (levelCount[r.level] !== undefined) levelCount[r.level]++;
+    scoreSum += Number(r.score) || 0;
+  });
+  const pct = (n, total) => total ? (n / total * 100).toFixed(1) + '% số lượt làm test' : '';
+  const wStatus = { approved: 0, rejected: 0, pending: 0 };
+  whispers.forEach(w => { wStatus[w.status === 'approved' || w.status === 'rejected' ? w.status : 'pending']++; });
+
+  const overview = [
+    ['DUCK CARE SPACE — BÁO CÁO SỐ LIỆU'],
+    ['Thời điểm xuất báo cáo', now],
+    [],
+    ['Chỉ số', 'Giá trị', 'Ghi chú'],
+    ['Người truy cập (theo thiết bị)', visitors.length, 'Mỗi thiết bị/trình duyệt = 1 người. Xoá dữ liệu trình duyệt hoặc dùng chế độ ẩn danh sẽ bị tính là thiết bị mới.'],
+    ['Tổng lượt xem trang', visits.count || 0, 'Mỗi trang được đếm 1 lần cho mỗi phiên trình duyệt.'],
+    ['Lượt làm Duck Radar', radar.length, ''],
+    ['   — Mức Xanh (bình thường)', levelCount.xanh, pct(levelCount.xanh, radar.length)],
+    ['   — Mức Vàng (áp lực tiềm ẩn)', levelCount.vang, pct(levelCount.vang, radar.length)],
+    ['   — Mức Đỏ (kiệt sức)', levelCount.do, pct(levelCount.do, radar.length)],
+    ['   — Điểm trung bình (thang 8–40)', radar.length ? Number((scoreSum / radar.length).toFixed(2)) : '', ''],
+    ['Lượt tập thở', breathing.length, 'Mỗi lần bấm "Bắt đầu hít thở" tính 1 lượt.'],
+    ['Duck Whispers đã gửi', whispers.length, ''],
+    ['   — Đã duyệt', wStatus.approved, ''],
+    ['   — Chờ duyệt', wStatus.pending, ''],
+    ['   — Từ chối / đã gỡ', wStatus.rejected, ''],
+  ];
+  XLSX.utils.book_append_sheet(wb, makeSheet(overview, [38, 16, 90]), 'Tổng quan');
+
+  // ----- Theo ngày -----
+  const byDay = {};
+  const bump = (ts, field) => {
+    const d = tsToDate(ts);
+    if (!d) return;
+    const k = dayKey(d);
+    if (!byDay[k]) byDay[k] = { date: dayStart(d), visitors: 0, radar: 0, xanh: 0, vang: 0, do: 0, breathing: 0, whispers: 0 };
+    byDay[k][field]++;
+    return byDay[k];
+  };
+  visitors.forEach(v => bump(v.firstSeen, 'visitors'));
+  radar.forEach(r => { const row = bump(r.createdAt, 'radar'); if (row && row[r.level] !== undefined) row[r.level]++; });
+  breathing.forEach(b => bump(b.createdAt, 'breathing'));
+  whispers.forEach(w => bump(w.createdAt, 'whispers'));
+  const dayRows = Object.keys(byDay).sort().map(k => {
+    const r = byDay[k];
+    return [r.date, r.visitors, r.radar, r.xanh, r.vang, r.do, r.breathing, r.whispers];
+  });
+  XLSX.utils.book_append_sheet(wb, makeSheet(
+    [['Ngày', 'Người truy cập mới', 'Lượt làm Radar', 'Radar: Xanh', 'Radar: Vàng', 'Radar: Đỏ', 'Lượt tập thở', 'Whispers gửi'], ...dayRows],
+    [14, 20, 16, 12, 12, 12, 14, 14], 'dd/mm/yyyy'), 'Theo ngày');
+
+  // ----- Duck Radar -----
+  const radarRows = radar.slice()
+    .sort((a, b) => (tsToDate(a.createdAt) || 0) - (tsToDate(b.createdAt) || 0))
+    .map(r => [tsToDate(r.createdAt) || '', Number(r.score), RADAR_LEVEL_LABEL[r.level] || r.level]);
+  XLSX.utils.book_append_sheet(wb, makeSheet(
+    [['Thời gian', 'Điểm (8–40)', 'Mức'], ...radarRows], [22, 14, 12]), 'Duck Radar');
+
+  // ----- Lượt tập thở -----
+  const breathRows = breathing.map(b => tsToDate(b.createdAt) || '')
+    .sort((a, b) => (a || 0) - (b || 0)).map((t, i) => [i + 1, t]);
+  XLSX.utils.book_append_sheet(wb, makeSheet(
+    [['STT', 'Thời gian'], ...breathRows], [8, 22]), 'Lượt tập thở');
+
+  // ----- Duck Whispers -----
+  const whisperRows = whispers.slice()
+    .sort((a, b) => (tsToDate(a.createdAt) || 0) - (tsToDate(b.createdAt) || 0))
+    .map(w => [
+      tsToDate(w.createdAt) || '', w.title || '', w.tag || '', w.message || '',
+      WHISPER_STATUS_LABEL[w.status] || WHISPER_STATUS_LABEL.pending, w.likeCount || 0,
+    ]);
+  XLSX.utils.book_append_sheet(wb, makeSheet(
+    [['Thời gian', 'Tiêu đề', 'Chủ đề', 'Nội dung', 'Trạng thái', 'Lượt tim'], ...whisperRows],
+    [22, 32, 22, 80, 14, 10]), 'Duck Whispers');
+
+  // ----- Người truy cập (không xuất mã thiết bị, chỉ xuất thời điểm & trang đầu tiên) -----
+  const visitorRows = visitors.slice()
+    .sort((a, b) => (tsToDate(a.firstSeen) || 0) - (tsToDate(b.firstSeen) || 0))
+    .map((v, i) => [i + 1, tsToDate(v.firstSeen) || '', v.firstPage || '']);
+  XLSX.utils.book_append_sheet(wb, makeSheet(
+    [['STT', 'Lần đầu truy cập', 'Trang đầu tiên'], ...visitorRows], [8, 22, 20]), 'Người truy cập');
+
+  // ----- Lượt xem theo trang -----
+  const pageRows = Object.keys(visits.byPage || {})
+    .map(k => [pageLabel(k), Number(visits.byPage[k]) || 0])
+    .sort((a, b) => b[1] - a[1]);
+  XLSX.utils.book_append_sheet(wb, makeSheet(
+    [['Trang', 'Lượt xem'], ...pageRows], [22, 12]), 'Lượt xem theo trang');
+
+  return wb;
+}
+// ---- REPORT BUILDER END ----
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  if (typeof XLSX === 'undefined') {
+    alert('Chưa tải được thư viện xuất Excel (cần kết nối Internet tới cdnjs.cloudflare.com). Hãy tải lại trang rồi thử lại.');
+    return;
+  }
+  if (loadErrors.size &&
+      !confirm('Một số dữ liệu chưa tải được: ' + [...loadErrors].join(', ') +
+               '.\nBáo cáo sẽ thiếu các phần này. Vẫn xuất Excel?')) return;
+
+  const now = new Date();
+  const p = n => String(n).padStart(2, '0');
+  const fileName = `DuckCare_BaoCao_${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}.xlsx`;
+  try {
+    XLSX.writeFile(buildReportWorkbook(adminData, now), fileName);
+  } catch (err) {
+    console.error('Lỗi xuất Excel:', err);
+    alert('Không thể tạo file Excel: ' + err.message);
+  }
+});
 </script>
 </body>
 </html>

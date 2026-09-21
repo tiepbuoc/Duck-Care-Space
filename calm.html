@@ -139,25 +139,25 @@
     <div class="wrap wrap--narrow">
       <div class="card">
         <h3>Âm thanh thư giãn</h3>
-        <p class="muted mt-0">Chọn một âm thanh nền để nghe khi thở hoặc khi cần tập trung lại. Bấm lần nữa để tắt.</p>
+        <p class="muted mt-0">Chọn một âm thanh nền để nghe khi thở hoặc khi cần tập trung lại. Âm thanh tự lặp lại liên tục — bấm lần nữa để tắt.</p>
         <div class="sound-grid">
-          <button class="sound-btn" data-sound="rain">
+          <button class="sound-btn" data-sound="rain" aria-pressed="false">
             <span class="sound-btn__icon">🌧️</span>
             <strong>Mưa rơi</strong>
-            <span class="sound-btn__hint">Âm thanh trắng dịu, đều đặn</span>
+            <span class="sound-btn__hint">Tiếng mưa dịu, đều đặn</span>
           </button>
-          <button class="sound-btn" data-sound="ocean">
+          <button class="sound-btn" data-sound="wave" aria-pressed="false">
             <span class="sound-btn__icon">🌊</span>
             <strong>Sóng biển</strong>
             <span class="sound-btn__hint">Nhịp sóng vỗ chậm rãi</span>
           </button>
-          <button class="sound-btn" data-sound="alpha">
+          <button class="sound-btn" data-sound="chill" aria-pressed="false">
             <span class="sound-btn__icon">🎧</span>
-            <strong>Lofi sóng não Alpha</strong>
-            <span class="sound-btn__hint">Nhịp hai tai ~10Hz — nên đeo tai nghe</span>
+            <strong>Nhạc chill</strong>
+            <span class="sound-btn__hint">Giai điệu nhẹ nhàng, thư thả</span>
           </button>
         </div>
-        <p class="muted" style="margin-top:14px; font-size:0.8rem;">Âm thanh được tạo trực tiếp trên trình duyệt của bạn (Web Audio API), không tải file ngoài.</p>
+        <p class="muted" id="sound-status" role="status" aria-live="polite" style="margin-top:14px; font-size:0.8rem;">Âm thanh sẽ tự lặp lại cho đến khi bạn tắt.</p>
       </div>
     </div>
   </section>
@@ -219,7 +219,17 @@ function runBreatheCycle() {
   }, 1000);
 }
 
+// Ghi nhận ẩn danh 1 lượt tập thở (mỗi lần bấm "Bắt đầu hít thở") để Admin thống kê.
+function trackBreathingSession() {
+  if (typeof db === 'undefined') return;
+  db.collection('breathing_sessions').add({
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    sessionRef: duckAnonId(),   // mã phiên ngẫu nhiên, không định danh cá nhân
+  }).catch(err => console.warn('Không ghi nhận được lượt tập thở:', err.message));
+}
+
 startBtn.addEventListener('click', () => {
+  trackBreathingSession();
   started = true;
   paused = false;
   circleEl.classList.add('is-running');
@@ -249,97 +259,72 @@ stopBtn.addEventListener('click', () => {
   stopBtn.style.display = 'none';
 });
 
-/* ---------------- Ambient sounds via Web Audio API ---------------- */
-let audioCtx = null;
-let activeSound = null; // { key, nodes: [...], stop() }
+/* ---------------- Ambient sounds (file mp3, lặp vô hạn) ---------------- */
+// Đặt 3 file này trong thư mục assets/audio/ cùng cấp với trang web.
+const SOUND_FILES = {
+  rain:  'assets/audio/rain.mp3',
+  wave:  'assets/audio/wave.mp3',
+  chill: 'assets/audio/chill.mp3',
+};
+const soundBtns = document.querySelectorAll('.sound-btn');
+const soundStatus = document.getElementById('sound-status');
+const SOUND_STATUS_DEFAULT = soundStatus.textContent;
+const players = {};      // key -> HTMLAudioElement (tạo khi bấm lần đầu)
+let activeSound = null;  // key đang phát, hoặc null
 
-function getCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return audioCtx;
+function setSoundUI(key, playing) {
+  soundBtns.forEach(b => {
+    const on = playing && b.dataset.sound === key;
+    b.classList.toggle('is-playing', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
 }
 
-function makeNoiseBuffer(ctx, seconds = 4) {
-  const bufferSize = ctx.sampleRate * seconds;
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-  return buffer;
+function getPlayer(key) {
+  if (!players[key]) {
+    const a = new Audio(SOUND_FILES[key]);
+    a.loop = true;        // lặp vô hạn
+    a.preload = 'none';   // chỉ tải file khi người dùng bấm phát
+    a.addEventListener('error', () => {
+      // File chưa có hoặc sai đường dẫn / định dạng
+      if (activeSound === key) { activeSound = null; setSoundUI(key, false); }
+      soundStatus.textContent = 'Chưa tải được âm thanh này. Vui lòng thử lại sau.';
+    });
+    players[key] = a;
+  }
+  return players[key];
 }
 
-function startRain(ctx, master) {
-  const noise = ctx.createBufferSource();
-  noise.buffer = makeNoiseBuffer(ctx, 4);
-  noise.loop = true;
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'highpass';
-  filter.frequency.value = 1200;
-  const gain = ctx.createGain();
-  gain.gain.value = 0.18;
-  noise.connect(filter).connect(gain).connect(master);
-  noise.start();
-  return () => noise.stop();
+function stopActiveSound() {
+  if (!activeSound) return;
+  const a = players[activeSound];
+  a.pause();
+  a.currentTime = 0;
+  setSoundUI(activeSound, false);
+  activeSound = null;
 }
 
-function startOcean(ctx, master) {
-  const noise = ctx.createBufferSource();
-  noise.buffer = makeNoiseBuffer(ctx, 6);
-  noise.loop = true;
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = 500;
-  const gain = ctx.createGain();
-  gain.gain.value = 0.22;
-  // LFO điều biến âm lượng như nhịp sóng vỗ
-  const lfo = ctx.createOscillator();
-  lfo.frequency.value = 0.12;
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.value = 0.15;
-  lfo.connect(lfoGain).connect(gain.gain);
-  noise.connect(filter).connect(gain).connect(master);
-  noise.start(); lfo.start();
-  return () => { noise.stop(); lfo.stop(); };
-}
-
-function startAlpha(ctx, master) {
-  // Binaural beat: tai trái 220Hz, tai phải 230Hz => nhịp lệch 10Hz (dải sóng Alpha)
-  const merger = ctx.createChannelMerger(2);
-  const left = ctx.createOscillator();
-  left.frequency.value = 220;
-  const right = ctx.createOscillator();
-  right.frequency.value = 230;
-  const gain = ctx.createGain();
-  gain.gain.value = 0.06;
-  left.connect(merger, 0, 0);
-  right.connect(merger, 0, 1);
-  merger.connect(gain).connect(master);
-  left.start(); right.start();
-  return () => { left.stop(); right.stop(); };
-}
-
-const SOUND_STARTERS = { rain: startRain, ocean: startOcean, alpha: startAlpha };
-
-document.querySelectorAll('.sound-btn').forEach(btn => {
+soundBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     const key = btn.dataset.sound;
-    const ctx = getCtx();
-    if (ctx.state === 'suspended') ctx.resume();
+    soundStatus.textContent = SOUND_STATUS_DEFAULT;
 
-    if (activeSound && activeSound.key === key) {
-      activeSound.stop();
-      activeSound = null;
-      btn.classList.remove('is-playing');
-      return;
+    if (activeSound === key) { stopActiveSound(); return; }  // bấm lại => tắt
+    stopActiveSound();                                        // chỉ phát 1 âm thanh
+
+    const audio = getPlayer(key);
+    activeSound = key;
+    setSoundUI(key, true);
+    const p = audio.play();
+    if (p && typeof p.catch === 'function') {
+      p.catch(err => {
+        // Sự kiện 'error' đã xử lý file lỗi; ở đây xử lý trường hợp trình duyệt chặn phát
+        if (activeSound === key) { activeSound = null; setSoundUI(key, false); }
+        if (err && err.name === 'NotAllowedError') {
+          soundStatus.textContent = 'Trình duyệt đang chặn phát âm thanh — hãy bấm lại một lần nữa.';
+        }
+      });
     }
-    if (activeSound) {
-      activeSound.stop();
-      document.querySelectorAll('.sound-btn').forEach(b => b.classList.remove('is-playing'));
-    }
-    const master = ctx.createGain();
-    master.gain.value = 1;
-    master.connect(ctx.destination);
-    const stopFn = SOUND_STARTERS[key](ctx, master);
-    activeSound = { key, stop: () => { stopFn(); master.disconnect(); } };
-    btn.classList.add('is-playing');
   });
 });
 
