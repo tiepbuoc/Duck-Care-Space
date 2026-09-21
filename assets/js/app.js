@@ -1,6 +1,42 @@
 // Duck Care Space — tiện ích dùng chung cho mọi trang
 
+// Không gian tên dùng chung. Các trang gọi Duck.onLeave(fn) để đăng ký hàm dọn dẹp
+// (dừng timer, tắt âm thanh, gỡ listener trên document/window...) — điều hướng "thông
+// suốt" (assets/js/spa.js) sẽ chạy các hàm này khi người dùng rời trang mà KHÔNG tải lại.
+window.Duck = window.Duck || {
+  _leaveHooks: [],
+  onLeave(fn) { if (typeof fn === 'function') this._leaveHooks.push(fn); },
+};
+
+// Tên file trang hiện tại: "/", "/duck-care-space/" => index.html; "/radar" => radar.html
+function duckPageName() {
+  let seg = window.location.pathname.split('/').pop();
+  if (!seg) return 'index.html';
+  if (seg.indexOf('.') === -1) seg += '.html'; // GitHub Pages cho phép mở /radar thay cho /radar.html
+  return seg;
+}
+
+// Đánh dấu mục nav của trang hiện tại (gọi lại sau mỗi lần điều hướng không tải lại trang)
+function duckMarkActiveNav() {
+  const here = duckPageName();
+  document.querySelectorAll('.site-nav a').forEach(a => {
+    const target = (a.getAttribute('href') || '').split('#')[0];
+    const active = target === here;
+    a.classList.toggle('is-active', active);
+    if (active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+}
+
+// Đóng menu di động (gọi sau khi chuyển trang)
+function duckCloseNav() {
+  const toggle = document.querySelector('.nav-toggle');
+  const nav = document.querySelector('.site-nav');
+  if (nav) nav.classList.remove('is-open');
+  if (toggle) toggle.setAttribute('aria-expanded', 'false');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  // Header được giữ nguyên khi chuyển trang => chỉ cần gắn sự kiện 1 lần
   const toggle = document.querySelector('.nav-toggle');
   const nav = document.querySelector('.site-nav');
   if (toggle && nav) {
@@ -9,13 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   }
-
-  // Đánh dấu mục nav hiện tại
-  const here = window.location.pathname.split('/').pop() || 'index.html';
-  document.querySelectorAll('.site-nav a').forEach(a => {
-    const target = a.getAttribute('href');
-    if (target === here) a.classList.add('is-active');
-  });
+  duckMarkActiveNav();
 });
 
 // Sinh mã định danh ẩn danh ngắn, chỉ tồn tại trong phiên trình duyệt hiện tại
@@ -65,7 +95,7 @@ function duckDeviceId() {
 // duyệt (dùng sessionStorage để tránh đếm trùng khi người dùng bấm qua lại).
 function trackPageView() {
   if (typeof db === 'undefined') return; // trang chưa nhúng Firebase
-  const page = window.location.pathname.split('/').pop() || 'index.html';
+  const page = duckPageName();
   const flagKey = 'duck_view_logged_' + page;
   if (sessionStorage.getItem(flagKey)) return;
   sessionStorage.setItem(flagKey, '1');
@@ -92,7 +122,7 @@ function trackUniqueVisitor() {
   const deviceId = duckDeviceId();
   if (!deviceId) return;
 
-  const page = window.location.pathname.split('/').pop() || 'index.html';
+  const page = duckPageName();
   db.collection('visitors').doc(deviceId).set({
     firstSeen: firebase.firestore.FieldValue.serverTimestamp(),
     firstPage: page,

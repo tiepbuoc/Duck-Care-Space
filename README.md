@@ -17,6 +17,7 @@ duck-care-space/
 │  ├─ audio/                 ← đặt rain.mp3, wave.mp3, chill.mp3 vào đây
 │  ├─ css/style.css
 │  ├─ js/app.js              tiện ích dùng chung (menu, đếm lượt truy cập)
+│  ├─ js/spa.js              điều hướng "thông suốt" — chuyển trang không tải lại
 │  └─ js/firebase-config.js  ← FILE DUY NHẤT CẦN CHỈNH SỬA để kết nối Firebase
 └─ README.md          (chính là file này)
 ```
@@ -90,6 +91,38 @@ Tất cả nằm trong `admin.html` sau khi đăng nhập:
 Bấm nút **⬇ Xuất báo cáo Excel** ở góc trên của Admin Dashboard để tải file `DuckCare_BaoCao_<ngày>.xlsx` (không cần bật gói Blaze). File gồm 7 sheet: *Tổng quan*, *Theo ngày*, *Duck Radar*, *Lượt tập thở*, *Duck Whispers*, *Người truy cập*, *Lượt xem theo trang*. Thời gian trong file theo giờ của máy đang xuất. File có **nội dung đầy đủ các tâm sự** (kể cả chưa duyệt/đã từ chối) nên cần bảo quản như dữ liệu nhạy cảm. Để xuất được, máy cần kết nối Internet tới `cdnjs.cloudflare.com` (thư viện SheetJS).
 
 Muốn xuất dữ liệu thô trực tiếp từ Firestore: Firebase Console → Firestore Database → chọn collection → **Export collection** (yêu cầu gói Blaze).
+
+---
+
+## Phần 5 — Điều hướng "thông suốt" (không tải lại trang)
+
+Khi người dùng bấm menu hoặc bất kỳ link nào giữa 5 trang công khai (Trang chủ, Duck Radar, Hồ tĩnh lặng, Nhật ký, Duck Whispers), `assets/js/spa.js` tải ngầm trang đích rồi chỉ thay phần nội dung. Header, font, kết nối Firebase được giữ nguyên nên chuyển trang gần như tức thì, có hiệu ứng mờ dần nhẹ. Các trang được nạp trước khi trình duyệt rảnh hoặc khi người dùng rê chuột / chạm vào link.
+
+**Vẫn chạy bình thường trên GitHub Pages, không cần cấu hình gì thêm**, vì mỗi trang vẫn là một file `.html` thật: mở link trực tiếp, F5, chia sẻ link, nút Back/Forward, tên miền riêng đều hoạt động. Nếu trình duyệt quá cũ hoặc tải ngầm bị lỗi (mất mạng...), web tự quay về cách chuyển trang thông thường.
+
+Những điểm cần biết:
+- **`admin.html` vẫn tải trang riêng** (có đăng nhập và thư viện Excel riêng), không nằm trong cơ chế này.
+- **Rời Hồ tĩnh lặng thì âm thanh và đồng hồ thở tự dừng** (để không có âm thanh chạy nền mà không có nút tắt).
+- Bấm lại đúng trang đang mở chỉ cuộn lên đầu trang, không đặt lại nội dung (ví dụ bài Duck Radar đang làm dở không bị mất).
+- Lượt xem trang vẫn được đếm cho mỗi trang, mỗi phiên trình duyệt như trước.
+
+### Thêm trang mới
+1. Sao chép cấu trúc một trang hiện có. Toàn bộ nội dung riêng của trang nằm trong `<div id="page-root"> ... </div>` (ngay sau `</header>`, đóng ngay trước các thẻ `<script src=...>`). Nhớ nạp `assets/js/app.js` rồi `assets/js/spa.js`.
+2. Script riêng của trang đặt cuối `<body>`, **bọc trong `(function () { ... })();`** để `const`/`let` không bị khai báo trùng khi trang được nạp lại.
+3. Timer, âm thanh, hoặc listener gắn vào `document`/`window` phải đăng ký hàm dọn dẹp: `Duck.onLeave(function () { ... });` (xem `calm.html`, `whispers.html`).
+4. Thêm tên file vào mảng `PAGES` đầu `assets/js/spa.js`, và thêm link vào menu ở mọi trang.
+
+---
+
+## Phần 6 — Con vịt kéo thả ở trang chủ
+
+Con vịt ở hero trang chủ có thể "cầm" để kéo đi quanh hồ. Sóng elip và bóng nước nằm chung nhóm SVG `#duck-drag` với vịt nên di chuyển đồng thời, vẫn giữ nguyên nhịp nhấp nhô và lan tỏa.
+
+- **Chuột / cảm ứng / bút**: kéo thả bằng Pointer Events. Chạm vào vịt trên điện thoại sẽ không làm cuộn trang; các vùng khác của màn hình vẫn cuộn bình thường.
+- **Bàn phím**: Tab để chọn vịt, phím mũi tên để di chuyển (giữ Shift để đi nhanh), Home để về giữa hồ.
+- **Chạm 2 lần liên tiếp** vào vịt cũng đưa vịt về giữa hồ.
+- Vịt chỉ di chuyển trong khung `.hero-duck-slot` (cột bên phải của hero), không đè lên chữ hay nút bấm. Vị trí không được lưu: mỗi lần vào lại trang chủ, vịt về giữa hồ.
+- Muốn chỉnh: logic nằm ở script cuối `index.html`. Hằng số `DUCK_BOX` là hộp bao của vịt (chỉ cần đổi khi bạn vẽ lại vịt), `KEY_STEP` là bước phím mũi tên. Muốn vịt đi được rộng hơn, đổi `slot` trong hàm `bounds()` sang phần tử lớn hơn (ví dụ `.hero-section`).
 
 ---
 

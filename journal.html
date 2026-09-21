@@ -11,10 +11,16 @@
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦆</text></svg>">
 <style>
-  .progress-track { height: 10px; border-radius: 999px; background: var(--pond-deep); overflow: hidden; margin: 14px 0 6px; }
+  .progress-track { height: 10px; border-radius: 999px; background: var(--pond-deep); overflow: hidden; margin: 14px 0 0; }
   .progress-fill { height: 100%; background: var(--butter); transition: width 0.4s ease; }
 
-  .day-dots { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin: 18px 0 26px; }
+  /* Khối chứa 2 card: các card cách nhau chỉ 12px (trước đây mỗi card nằm ở 1 <section> riêng, cách nhau ~100px) */
+  .journal-section { padding: 40px 0 64px; }
+  @media (max-width: 640px) { .journal-section { padding: 30px 0 44px; } }
+  .journal-stack { display: flex; flex-direction: column; gap: 12px; }
+
+  /* Dãy chấm nằm trong card tiến độ, ngay dưới thanh progress */
+  .day-dots { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin: 16px 0 2px; }
   .day-dot {
     width: 30px; height: 30px; border-radius: 50%;
     border: 1px solid var(--line); background: var(--white);
@@ -40,7 +46,7 @@
   }
   .day-nav { display:flex; justify-content:space-between; align-items:center; margin-top:28px; }
   .day-nav .btn:disabled { opacity: 0.35; }
-  .reset-row { margin-top: 28px; text-align:center; }
+  .reset-row { margin-top: 8px; text-align:center; }
 </style>
 </head>
 <body>
@@ -62,6 +68,8 @@
   </div>
 </header>
 
+<div id="page-root">
+
 <main id="main">
   <section class="section" style="padding-bottom:0;">
     <div class="wrap wrap--narrow">
@@ -71,22 +79,20 @@
     </div>
   </section>
 
-  <section class="section section--tight">
-    <div class="wrap wrap--narrow">
+  <section class="section journal-section">
+    <div class="wrap wrap--narrow journal-stack">
+
+      <!-- Card 1: tiến độ + dãy chấm 14 ngày (dãy chấm nằm dưới thanh tiến độ) -->
       <div class="card">
         <div class="row" style="justify-content:space-between; align-items:baseline;">
           <h3 style="margin:0;">Tiến độ của bạn</h3>
           <span class="muted" id="progress-text">0 / 14 ngày</span>
         </div>
         <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+        <div class="day-dots" id="day-dots"></div>
       </div>
-    </div>
-  </section>
 
-  <section class="section">
-    <div class="wrap wrap--narrow">
-      <div class="day-dots" id="day-dots"></div>
-
+      <!-- Card 2: hành động của ngày đang chọn -->
       <div class="card">
         <div class="day-view">
           <div class="day-num" id="day-num">Ngày 1 / 14</div>
@@ -111,12 +117,16 @@
   </section>
 </main>
 
+</div><!-- /#page-root -->
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
 <script src="assets/js/firebase-config.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/spa.js"></script>
 <script>
+(function () {
 const HABITS = [
   "Viết ra 1 điều mình đã làm tốt hôm nay, dù rất nhỏ.",
   "Cho phép bản thân nghỉ 10 phút mà không thấy áy náy.",
@@ -221,6 +231,7 @@ document.getElementById('reset-btn').addEventListener('click', () => {
     render();
   }
 });
+})();
 </script>
 </body>
 </html>

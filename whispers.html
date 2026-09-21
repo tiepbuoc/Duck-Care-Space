@@ -145,6 +145,8 @@
   </div>
 </header>
 
+<div id="page-root">
+
 <main id="main">
   <section class="section" style="padding-bottom:0;">
     <div class="wrap wrap--narrow">
@@ -233,12 +235,16 @@
   </div>
 </div>
 
+</div><!-- /#page-root -->
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
 <script src="assets/js/firebase-config.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/spa.js"></script>
 <script>
+(function () {
 /* ---------------- Modal open/close helpers ---------------- */
 function openModal(id) { document.getElementById(id).classList.add('is-open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('is-open'); }
@@ -249,8 +255,17 @@ document.getElementById('detail-close').addEventListener('click', () => closeMod
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('is-open'); });
 });
-document.addEventListener('keydown', (e) => {
+function onEscapeKey(e) {
   if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.is-open').forEach(o => o.classList.remove('is-open'));
+}
+document.addEventListener('keydown', onEscapeKey);
+
+// Rời trang (điều hướng không tải lại trang): gỡ listener trên document,
+// và đánh dấu để các request đang chạy dở không cập nhật vào DOM của trang khác.
+let pageAlive = true;
+Duck.onLeave(function () {
+  pageAlive = false;
+  document.removeEventListener('keydown', onEscapeKey);
 });
 
 /* ---------------- Add form ---------------- */
@@ -312,12 +327,14 @@ async function loadWall() {
       .orderBy('createdAt', 'desc')
       .limit(60)
       .get();
+    if (!pageAlive) return;
 
     allWhispers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     buildTagFilterOptions();
     applyFilters();
   } catch (err) {
     console.error('Lỗi tải bảng sẻ chia:', err);
+    if (!pageAlive) return;
     grid.innerHTML = '<p class="wall-empty">Chưa thể tải bảng sẻ chia lúc này.</p>';
   }
 }
@@ -458,6 +475,7 @@ document.getElementById('like-btn').addEventListener('click', async () => {
 });
 
 loadWall();
+})();
 </script>
 </body>
 </html>

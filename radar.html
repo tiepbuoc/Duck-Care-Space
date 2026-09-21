@@ -74,6 +74,8 @@
   </div>
 </header>
 
+<div id="page-root">
+
 <main id="main">
   <section class="section" style="padding-bottom:0;">
     <div class="wrap wrap--narrow">
@@ -135,12 +137,16 @@
   </section>
 </main>
 
+</div><!-- /#page-root -->
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
 <script src="assets/js/firebase-config.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/spa.js"></script>
 <script>
+(function () {
 // ------------------------------------------------------------------
 // Bộ câu hỏi Duck Radar — thang Likert 1 (Hiếm khi) – 5 (Rất thường xuyên)
 // Điểm càng cao => mức "vùng vẫy ngầm" càng lớn.
@@ -294,6 +300,7 @@ function submitQuiz() {
     statusEl.textContent = 'Kết quả của bạn vẫn hiển thị bình thường, nhưng chưa đồng bộ được lên hệ thống thống kê.';
   });
 }
+})();
 </script>
 </body>
 </html>
