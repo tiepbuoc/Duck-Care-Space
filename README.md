@@ -11,6 +11,9 @@ duck-care-space/
 ├─ calm.html          Module E — Hồ tĩnh lặng (thở, âm thanh, xả suy nghĩ)
 ├─ journal.html       Module G — Nhật ký 14 ngày (Local Storage)
 ├─ whispers.html      Module C — Duck Whispers (hòm thư ẩn danh + Bảng sẻ chia)
+├─ ai-screening.html  DUCK CARE AI Screening (chatbot sàng lọc & khuyến nghị)
+├─ ai-learning.html   DUCK CARE AI Learning (bài học ngắn, tình huống, hỏi đáp)
+├─ worker/duck-ai-worker.js  Máy chủ trung gian giữ API key (Cloudflare Worker)
 ├─ admin.html         Admin Dashboard (đăng nhập, thống kê, duyệt tâm sự)
 ├─ firestore.rules    Luật bảo mật Firestore — BẮT BUỘC phải publish luật này
 ├─ assets/
@@ -123,6 +126,44 @@ Con vịt ở hero trang chủ có thể "cầm" để kéo đi quanh hồ. Són
 - **Chạm 2 lần liên tiếp** vào vịt cũng đưa vịt về giữa hồ.
 - Vịt chỉ di chuyển trong khung `.hero-duck-slot` (cột bên phải của hero), không đè lên chữ hay nút bấm. Vị trí không được lưu: mỗi lần vào lại trang chủ, vịt về giữa hồ.
 - Muốn chỉnh: logic nằm ở script cuối `index.html`. Hằng số `DUCK_BOX` là hộp bao của vịt (chỉ cần đổi khi bạn vẽ lại vịt), `KEY_STEP` là bước phím mũi tên. Muốn vịt đi được rộng hơn, đổi `slot` trong hàm `bounds()` sang phần tử lớn hơn (ví dụ `.hero-section`).
+
+---
+
+## Phần 7 — Trợ lý ảo DUCK CARE AI (chatbot)
+
+Chatbot xuất hiện ở **mọi trang** dưới dạng nút "Hỏi Duck AI" (góc phải dưới) và có 2 trang riêng trong menu.
+
+| Chức năng | Trang | Cách hoạt động |
+|---|---|---|
+| **AI Screening** | `ai-screening.html` | Chatbot hỏi 8 câu (cùng bộ với Duck Radar) bằng nút bấm nhanh → **code tự tính điểm & mức Xanh/Vàng/Đỏ** (cùng ngưỡng Duck Radar) → **AI viết khuyến nghị cá nhân hoá** theo các chủ đề điểm cao. Mức Đỏ hiện nhắc gặp thầy cô/cán bộ tâm lý ngay trong hôm nay. |
+| **AI Learning** | `ai-learning.html` | 7 bài học ngắn (2–3 phút), 8 câu hỏi tình huống có phản hồi từng lựa chọn, **AI tạo tình huống mới** và hỏi đáp tự do về quản lý áp lực. Tiến độ lưu trên máy học sinh. |
+
+**Thiết kế an toàn:** điểm/mức nguy cơ không do AI quyết định (tránh sai lệch); trình duyệt tự phát hiện từ khoá tự làm hại bản thân và hiện ngay thông tin hỗ trợ (111, 115/112); AI bị ràng buộc không chẩn đoán, không kê thuốc; nội dung trò chuyện **không được lưu**, chỉ lưu ẩn danh điểm số/mức độ (`ai_screening_results`) và lượt học (`ai_learning_events`) cho Admin.
+
+### Cách gọi AI hiện tại (giống dự án NR10)
+`assets/js/ai-config.js` đã được cấu hình **giống NR10**: API chuẩn OpenAI-compatible, `POST {baseUrl}/chat/completions`, kèm `model` và `apiKey`. Chatbot gọi thẳng từ trình duyệt, không cần Worker. System prompt nằm ở `assets/js/duck-ai-prompts.js`.
+> ⚠️ `apiKey` nằm trong file JS công khai nên ai mở web cũng đọc và dùng được hạn mức. Phù hợp để **test**; khi triển khai cho trường học nên xoá `apiKey`/`baseUrl`, dùng Worker (bên dưới) và/hoặc đặt hạn mức chi tiêu thấp cho khóa.
+
+### Hai chế độ chạy
+- **Chế độ cơ bản (mặc định, chưa cần làm gì):** khảo sát, bài học, tình huống có sẵn vẫn dùng đầy đủ; trò chuyện tự do trả lời bằng gợi ý mẫu.
+- **Chế độ AI đầy đủ:** làm các bước dưới đây.
+
+### Bật AI thật (làm 1 lần, miễn phí được)
+Web chạy trên GitHub Pages nên **tuyệt đối không để API key trong code**. Dùng Cloudflare Worker làm trung gian:
+1. Lấy API key: Google AI Studio (Gemini, có gói miễn phí) **hoặc** Anthropic Console (Claude).
+2. Vào https://dash.cloudflare.com → **Workers & Pages → Create → Worker** → dán toàn bộ `worker/duck-ai-worker.js` → Deploy.
+3. Worker → **Settings → Variables and Secrets**, thêm:
+   - `API_KEY` (loại **Secret**) = key ở bước 1
+   - `PROVIDER` = `gemini` hoặc `anthropic`
+   - `ALLOWED_ORIGINS` = địa chỉ web, ví dụ `https://ten-user.github.io` (không có dấu `/` cuối; có thể thêm tên miền riêng, cách nhau bằng dấu phẩy)
+   - (tuỳ chọn) `MODEL` nếu muốn đổi mô hình.
+4. Copy URL Worker (dạng `https://duck-ai.xxx.workers.dev`) → dán vào `endpoint` trong `assets/js/ai-config.js`.
+5. **Publish lại `firestore.rules`** (có thêm 2 collection `ai_screening_results`, `ai_learning_events`). Nếu bỏ qua, chatbot vẫn chạy nhưng Admin không thấy số liệu AI.
+
+### Chỉnh nội dung
+Toàn bộ câu hỏi, gợi ý theo từng câu, bài học và tình huống nằm trong `assets/js/duck-ai-content.js`. Câu hỏi sàng lọc đang dùng **cùng bộ 8 câu và cùng ngưỡng với Duck Radar**; nếu nhóm nghiên cứu đổi thang đo chuẩn hoá, cần sửa đồng bộ ở cả hai nơi (và ràng buộc `score <= 40`, `items.size() == 8` trong `firestore.rules`).
+
+> ⚠️ Kết quả sàng lọc chỉ mang tính tham khảo, không phải chẩn đoán. Nhóm vận hành nên có quy trình chuyển tiếp cho giáo viên/cán bộ tâm lý với các trường hợp mức Đỏ.
 
 ---
 

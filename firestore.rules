@@ -91,6 +91,37 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---------- DUCK CARE AI Screening ----------
+    // Kết quả sàng lọc qua chatbot (ẩn danh). KHÔNG lưu nội dung trò chuyện.
+    match /ai_screening_results/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['score', 'level', 'items', 'createdAt', 'sessionRef'])
+                    && request.resource.data.level in ['xanh', 'vang', 'do']
+                    && request.resource.data.score is int
+                    && request.resource.data.score >= 0
+                    && request.resource.data.score <= 40
+                    && request.resource.data.items is list
+                    && request.resource.data.items.size() == 8
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.sessionRef is string
+                    && request.resource.data.sessionRef.size() <= 40;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------- DUCK CARE AI Learning ----------
+    // Mỗi bài học hoàn thành / tình huống đã làm = 1 document ẩn danh.
+    match /ai_learning_events/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['type', 'ref', 'createdAt', 'sessionRef'])
+                    && request.resource.data.type in ['lesson', 'scenario']
+                    && request.resource.data.ref is string
+                    && request.resource.data.ref.size() <= 40
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.sessionRef is string
+                    && request.resource.data.sessionRef.size() <= 40;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // ---------- Danh sách admin ----------
     // Thêm thủ công trong Firebase Console: Firestore → collection "admins"
     // → tạo document có ID = UID của tài khoản Admin (copy từ tab Authentication).

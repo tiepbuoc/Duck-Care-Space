@@ -82,6 +82,8 @@
     <div class="stat-card"><div class="num" id="stat-tests">–</div><div class="label">Lượt làm Duck Radar</div></div>
     <div class="stat-card"><div class="num" id="stat-breath">–</div><div class="label">Lượt tập thở</div></div>
     <div class="stat-card"><div class="num" id="stat-whispers">–</div><div class="label">Lượt gửi Duck Whispers</div></div>
+    <div class="stat-card"><div class="num" id="stat-ai-screen">–</div><div class="label">Lượt sàng lọc qua AI Screening</div></div>
+    <div class="stat-card"><div class="num" id="stat-ai-learn">–</div><div class="label">Lượt học qua AI Learning</div></div>
     <div class="stat-card"><div class="num" id="stat-pending">–</div><div class="label">Đang chờ duyệt</div></div>
   </div>
 
@@ -192,7 +194,7 @@ const adminData = { visits: { count: 0, byPage: {} }, visitors: [], radar: [], b
 const loadErrors = new Set();   // tên các nguồn dữ liệu tải lỗi (để cảnh báo khi xuất Excel)
 
 async function loadDashboard() {
-  await Promise.all([loadVisitStats(), loadRadarStats(), loadBreathingStats(), loadWhispers()]);
+  await Promise.all([loadVisitStats(), loadRadarStats(), loadBreathingStats(), loadWhispers(), loadAiStats()]);
 }
 
 async function loadVisitStats() {
@@ -216,6 +218,18 @@ async function loadVisitStats() {
   } catch (e) {
     document.getElementById('stat-visitors').textContent = '—';
     loadErrors.add('Người truy cập');
+  }
+}
+
+async function loadAiStats() {
+  try {
+    const s = await db.collection('ai_screening_results').get();
+    document.getElementById('stat-ai-screen').textContent = s.size;
+    const l = await db.collection('ai_learning_events').get();
+    document.getElementById('stat-ai-learn').textContent = l.size;
+  } catch (e) {
+    document.getElementById('stat-ai-screen').textContent = '—';
+    document.getElementById('stat-ai-learn').textContent = '—';
   }
 }
 

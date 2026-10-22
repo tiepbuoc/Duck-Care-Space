@@ -503,3 +503,79 @@ th { color: var(--ink-soft); font-weight: 600; font-size: 0.82rem; text-transfor
 .pill--pending { background: var(--pond-deep); color: var(--ink-soft); }
 .pill--approved { background: var(--lily); color: #234a2b; }
 .pill--rejected { background: var(--coral); color: #4a1f13; }
+
+/* ==========================================================================
+   Duck Care AI — chatbot (widget nổi + khung chat trong trang)
+   ========================================================================== */
+.dai { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--cream); }
+.dai-log { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+.dai-msg { display: flex; gap: 8px; max-width: 92%; align-items: flex-end; }
+.dai-msg--user { align-self: flex-end; justify-content: flex-end; }
+.dai-avatar { width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; background: var(--butter); display: flex; align-items: center; justify-content: center; font-size: 0.95rem; }
+.dai-bubble { padding: 10px 14px; border-radius: 18px; font-size: 0.93rem; line-height: 1.5; background: var(--white); border: 1px solid var(--line); color: var(--ink); overflow-wrap: anywhere; }
+.dai-msg--bot .dai-bubble { border-bottom-left-radius: 6px; }
+.dai-msg--user .dai-bubble { background: var(--ink); color: var(--cream); border-color: var(--ink); border-bottom-right-radius: 6px; }
+.dai-bubble p { margin: 0 0 8px; color: inherit; max-width: none; }
+.dai-bubble p:last-child { margin-bottom: 0; }
+.dai-bubble ul, .dai-bubble ol { margin: 4px 0 8px; padding-left: 20px; }
+.dai-bubble li { margin-bottom: 3px; }
+.dai-crisis .dai-bubble { background: #FDEDE8; border-color: var(--coral); }
+.dai-result .result-badge { display: inline-block; }
+.dai-typing { display: inline-flex; gap: 4px; padding: 4px 2px; }
+.dai-typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-soft); animation: dai-bounce 1.1s infinite ease-in-out; }
+.dai-typing i:nth-child(2) { animation-delay: .15s; } .dai-typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes dai-bounce { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+
+.dai-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 14px 10px; max-height: 38%; overflow-y: auto; }
+.dai-chips:empty { display: none; }
+.dai-chips.is-disabled { opacity: .45; pointer-events: none; }
+.dai-chip { font: inherit; font-size: 0.86rem; text-align: left; padding: 9px 14px; min-height: 40px; border-radius: 999px; border: 1px solid var(--butter-deep); background: var(--white); color: var(--ink); cursor: pointer; transition: background .15s; }
+.dai-chip:hover { background: var(--butter); }
+.dai-chip:focus-visible { outline: 3px solid var(--butter-deep); outline-offset: 2px; }
+.dai-chip--primary { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+.dai-chip--primary:hover { background: #253a47; }
+.dai-chip--ghost { border-color: var(--line); background: transparent; }
+.dai-chip--option { border-radius: 16px; width: 100%; }
+
+.dai-form { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--white); align-items: flex-end; }
+.dai-form textarea { flex: 1; resize: none; font: inherit; font-size: 0.93rem; padding: 10px 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--cream); color: var(--ink); max-height: 110px; }
+.dai-form textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+.dai-send { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; border: 0; background: var(--ink); color: var(--cream); cursor: pointer; font-size: 1rem; }
+.dai-send:disabled { opacity: .5; cursor: not-allowed; }
+.dai-note { margin: 0; padding: 6px 14px 10px; font-size: 0.72rem; line-height: 1.4; color: var(--ink-soft); background: var(--white); max-width: none; }
+
+/* Trang AI: khung chat lớn */
+.dai--full { height: min(72vh, 680px); min-height: 460px; border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; box-shadow: var(--shadow-soft); }
+
+/* Widget nổi */
+#dai-widget { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; }
+#dai-widget[hidden] { display: none; }
+.dai-launcher { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 18px 0 14px; border-radius: 999px; border: 0; cursor: pointer; background: var(--butter); color: var(--ink); font: 600 0.95rem var(--font-body); box-shadow: 0 10px 28px -10px rgba(47,72,88,.55); }
+.dai-launcher:hover { background: var(--butter-deep); }
+.dai-launcher:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.dai-launcher__icon { font-size: 1.4rem; }
+#dai-widget.is-open .dai-launcher { display: none; }
+.dai-panel { position: absolute; right: 0; bottom: 0; width: min(390px, calc(100vw - 24px)); height: min(620px, calc(100vh - 32px)); height: min(620px, calc(100dvh - 32px)); display: flex; flex-direction: column; border-radius: 22px; overflow: hidden; background: var(--cream); border: 1px solid var(--line); box-shadow: 0 24px 60px -20px rgba(47,72,88,.5); }
+.dai-panel[hidden] { display: none; }
+.dai-panel__head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--ink); color: var(--cream); }
+.dai-panel__head div { display: flex; flex-direction: column; line-height: 1.25; }
+.dai-panel__head strong { font-family: var(--font-display); font-size: 1.05rem; }
+.dai-panel__head span { font-size: 0.76rem; opacity: .8; }
+.dai-close { width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--cream); font-size: 1.05rem; cursor: pointer; }
+.dai-close:hover { background: rgba(255,255,255,.15); }
+.dai-tabs { display: flex; background: var(--pond-deep); padding: 4px; gap: 4px; }
+.dai-tab { flex: 1; min-height: 40px; border: 0; border-radius: 12px; background: transparent; font: 600 0.88rem var(--font-body); color: var(--ink-soft); cursor: pointer; }
+.dai-tab.is-active { background: var(--white); color: var(--ink); }
+.dai-panes { flex: 1; min-height: 0; display: flex; }
+.dai-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dai-pane[hidden] { display: none; }
+@media (max-width: 480px) {
+  #dai-widget { right: 12px; }
+  .dai-launcher__text { display: none; }
+  .dai-launcher { padding: 0 14px; }
+  .dai-panel { position: fixed; inset: auto 0 0 0; width: 100%; height: min(86vh, 86dvh); border-radius: 22px 22px 0 0; }
+}
+
+/* Thẻ giới thiệu 2 module AI (trang chủ) */
+.ai-feature { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 640px) { .ai-feature { grid-template-columns: 1fr; } }

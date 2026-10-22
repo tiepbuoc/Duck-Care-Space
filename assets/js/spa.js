@@ -24,7 +24,7 @@
   // Trình duyệt quá cũ => giữ nguyên cách điều hướng thông thường
   if (!window.fetch || !window.DOMParser || !window.history || !history.pushState) return;
 
-  const PAGES = ['index.html', 'radar.html', 'calm.html', 'journal.html', 'whispers.html'];
+  const PAGES = ['index.html', 'radar.html', 'calm.html', 'journal.html', 'whispers.html', 'ai-screening.html', 'ai-learning.html'];
   const ROOT_ID = 'page-root';
 
   // "radar.html" | "/radar" | "/" ... => tên file trang; null nếu không phải trang của web này
@@ -214,6 +214,7 @@
     const main = document.getElementById('main');
     if (main) { main.setAttribute('tabindex', '-1'); main.focus({ preventScroll: true }); }
     announce(data.title);
+    document.dispatchEvent(new CustomEvent('duck:pagechange'));
   }
 
   let navToken = 0;
