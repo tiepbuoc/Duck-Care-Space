@@ -138,7 +138,7 @@ Chatbot xuất hiện ở **mọi trang** dưới dạng nút "Hỏi Duck AI" (g
 | **AI Screening** | `ai-screening.html` | Chatbot hỏi 8 câu (cùng bộ với Duck Radar) bằng nút bấm nhanh → **code tự tính điểm & mức Xanh/Vàng/Đỏ** (cùng ngưỡng Duck Radar) → **AI viết khuyến nghị cá nhân hoá** theo các chủ đề điểm cao. Mức Đỏ hiện nhắc gặp thầy cô/cán bộ tâm lý ngay trong hôm nay. |
 | **AI Learning** | `ai-learning.html` | 7 bài học ngắn (2–3 phút), 8 câu hỏi tình huống có phản hồi từng lựa chọn, **AI tạo tình huống mới** và hỏi đáp tự do về quản lý áp lực. Tiến độ lưu trên máy học sinh. |
 
-**Thiết kế an toàn:** điểm/mức nguy cơ không do AI quyết định (tránh sai lệch); trình duyệt tự phát hiện từ khoá tự làm hại bản thân và hiện ngay thông tin hỗ trợ (111, 115/112); AI bị ràng buộc không chẩn đoán, không kê thuốc; nội dung trò chuyện **không được lưu**, chỉ lưu ẩn danh điểm số/mức độ (`ai_screening_results`) và lượt học (`ai_learning_events`) cho Admin.
+**Thiết kế an toàn:** điểm/mức nguy cơ không do AI quyết định (tránh sai lệch); trình duyệt tự phát hiện từ khoá tự làm hại bản thân và hiện ngay thông tin hỗ trợ (111, 115/112); AI bị ràng buộc không chẩn đoán, không kê thuốc; đoạn chat chỉ lưu **trong trình duyệt của học sinh** (popup và 2 trang AI dùng chung, có nút "Xóa chat"), không lưu lên Firebase; Firebase chỉ nhận ẩn danh điểm số/mức độ (`ai_screening_results`) và lượt học (`ai_learning_events`) cho Admin.
 
 ### Cách gọi AI hiện tại (giống dự án NR10)
 `assets/js/ai-config.js` đã được cấu hình **giống NR10**: API chuẩn OpenAI-compatible, `POST {baseUrl}/chat/completions`, kèm `model` và `apiKey`. Chatbot gọi thẳng từ trình duyệt, không cần Worker. System prompt nằm ở `assets/js/duck-ai-prompts.js`.

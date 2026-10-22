@@ -557,32 +557,27 @@ th { color: var(--ink-soft); font-weight: 600; font-size: 0.82rem; text-transfor
 .dai--full .dai-chip { font-size: clamp(0.86rem, 0.82rem + 0.2vw, 0.96rem); }
 .dai--full .dai-note { padding-top: 6px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
 
-/* Widget nổi */
-#dai-widget { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; }
+/* Widget nổi (góc trái dưới) */
+#dai-widget { position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; }
 #dai-widget[hidden] { display: none; }
-.dai-launcher { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 18px 0 14px; border-radius: 999px; border: 0; cursor: pointer; background: var(--butter); color: var(--ink); font: 600 0.95rem var(--font-body); box-shadow: 0 10px 28px -10px rgba(47,72,88,.55); }
+.dai-launcher { display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 0 18px 0 14px; border-radius: 999px; border: 0; cursor: pointer; background: var(--butter); color: var(--ink); font: 700 1rem var(--font-body); box-shadow: 0 10px 28px -10px rgba(47,72,88,.55); }
+.dai-launcher span { font-size: 1.4rem; }
 .dai-launcher:hover { background: var(--butter-deep); }
 .dai-launcher:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
-.dai-launcher__icon { font-size: 1.4rem; }
 #dai-widget.is-open .dai-launcher { display: none; }
-.dai-panel { position: absolute; right: 0; bottom: 0; width: min(390px, calc(100vw - 24px)); height: min(620px, calc(100vh - 32px)); height: min(620px, calc(100dvh - 32px)); display: flex; flex-direction: column; border-radius: 22px; overflow: hidden; background: var(--cream); border: 1px solid var(--line); box-shadow: 0 24px 60px -20px rgba(47,72,88,.5); }
+.dai-panel { position: absolute; left: 0; bottom: 0; width: min(390px, calc(100vw - 24px)); height: min(620px, calc(100vh - 32px)); height: min(620px, calc(100dvh - 32px)); display: flex; flex-direction: column; border-radius: 22px; overflow: hidden; background: var(--cream); border: 1px solid var(--line); box-shadow: 0 24px 60px -20px rgba(47,72,88,.5); }
 .dai-panel[hidden] { display: none; }
-.dai-panel__head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--ink); color: var(--cream); }
-.dai-panel__head div { display: flex; flex-direction: column; line-height: 1.25; }
-.dai-panel__head strong { font-family: var(--font-display); font-size: 1.05rem; }
-.dai-panel__head span { font-size: 0.76rem; opacity: .8; }
-.dai-close { width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--cream); font-size: 1.05rem; cursor: pointer; }
-.dai-close:hover { background: rgba(255,255,255,.15); }
-.dai-tabs { display: flex; background: var(--pond-deep); padding: 4px; gap: 4px; }
+.dai-tabs { display: flex; align-items: center; background: var(--pond-deep); padding: 4px; gap: 4px; }
 .dai-tab { flex: 1; min-height: 40px; border: 0; border-radius: 12px; background: transparent; font: 600 0.88rem var(--font-body); color: var(--ink-soft); cursor: pointer; }
 .dai-tab.is-active { background: var(--white); color: var(--ink); }
+.dai-close { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; border: 0; background: transparent; color: var(--ink); font-size: 1.05rem; cursor: pointer; }
+.dai-close:hover { background: rgba(47,72,88,.12); }
 .dai-panes { flex: 1; min-height: 0; display: flex; }
 .dai-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .dai-pane[hidden] { display: none; }
+.dai-clear { font: inherit; font-size: inherit; background: none; border: 0; padding: 2px 4px; color: var(--ink); text-decoration: underline; cursor: pointer; }
 @media (max-width: 480px) {
-  #dai-widget { right: 12px; }
-  .dai-launcher__text { display: none; }
-  .dai-launcher { padding: 0 14px; }
+  #dai-widget { left: 12px; }
   .dai-panel { position: fixed; inset: auto 0 0 0; width: 100%; height: min(86vh, 86dvh); border-radius: 22px 22px 0 0; }
 }
 

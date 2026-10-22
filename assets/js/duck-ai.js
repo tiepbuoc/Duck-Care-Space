@@ -7,7 +7,8 @@
  *  Nguyên tắc an toàn:
  *   - Điểm số & mức nguy cơ do CODE tính (cố định, giống Duck Radar) — AI chỉ giải thích & gợi ý.
  *   - Phát hiện từ khoá nguy hiểm (tự làm hại bản thân) ngay trên trình duyệt → hiện thông tin hỗ trợ khẩn cấp.
- *   - Nội dung trò chuyện KHÔNG được lưu. Chỉ lưu ẩn danh điểm số / mức nguy cơ (phục vụ thống kê).
+ *   - Đoạn chat chỉ lưu trong trình duyệt của học sinh (localStorage), dùng chung giữa popup và trang AI,
+ *     KHÔNG gửi lên máy chủ của dự án. Chỉ lưu ẩn danh điểm số / mức nguy cơ (phục vụ thống kê).
  *   - Chưa kết nối AI (endpoint trống) hoặc lỗi mạng → tự chuyển "chế độ cơ bản", không vỡ giao diện.
  */
 (function () {
@@ -162,11 +163,32 @@
   }
 
   // ------------------------------------------------------------------
+  // Lưu đoạn chat theo máy (localStorage) — dùng chung cho popup và trang AI
+  // Mỗi chế độ (screening / learning) có 1 đoạn chat riêng.
+  // ------------------------------------------------------------------
+  const STORE_PREFIX = 'duck_ai_chat_v1_';
+  const LOG_MAX = 200, HIST_MAX = 20;
+  const freshState = () => ({ v: 1, ts: 0, log: [], history: [], context: {}, view: null, data: {} });
+  function loadStored(mode) {
+    try { const j = JSON.parse(localStorage.getItem(STORE_PREFIX + mode) || 'null'); return j && j.v === 1 ? j : null; } catch (e) { return null; }
+  }
+
+  // ------------------------------------------------------------------
   // Chat: giao diện + trạng thái
   // ------------------------------------------------------------------
   function createChat(root, mode, opts) {
     opts = opts || {};
-    const state = { destroyed: false, busy: false, history: [], context: {}, abort: new AbortController() };
+    const key = STORE_PREFIX + mode;
+    const rt = { destroyed: false, busy: false, abort: new AbortController() };
+    let S = loadStored(mode) || freshState();   // trạng thái được lưu
+    let restoring = false;
+
+    function persist() {
+      S.ts = Math.max(Date.now(), S.ts + 1);
+      S.log = S.log.slice(-LOG_MAX); S.history = S.history.slice(-HIST_MAX);
+      try { localStorage.setItem(key, JSON.stringify(S)); }
+      catch (e) { try { S.log = S.log.slice(-40); localStorage.setItem(key, JSON.stringify(S)); } catch (e2) { /* hết dung lượng: bỏ qua */ } }
+    }
 
     root.classList.add('dai');
     if (opts.full) root.classList.add('dai--full');
@@ -174,10 +196,10 @@
       '<div class="dai-log" role="log" aria-live="polite" aria-label="Cuộc trò chuyện với Duck AI"></div>' +
       '<div class="dai-chips" role="group" aria-label="Lựa chọn nhanh"></div>' +
       '<form class="dai-form" autocomplete="off">' +
-            '<textarea rows="1" maxlength="500" placeholder="' + (mode === 'screening' ? 'Nhắn cho Duck AI…' : 'Hỏi Duck AI về áp lực, học tập…') + '" aria-label="Nhập tin nhắn"></textarea>' +
+      '<textarea rows="1" maxlength="500" placeholder="' + (mode === 'screening' ? 'Nhắn cho Duck AI…' : 'Hỏi Duck AI về áp lực, học tập…') + '" aria-label="Nhập tin nhắn"></textarea>' +
       '<button type="submit" class="dai-send" aria-label="Gửi">➤</button>' +
       '</form>' +
-      '<p class="dai-note">Duck AI là công cụ hỗ trợ, <strong>không phải chẩn đoán y khoa</strong> và không thay thế thầy cô, cán bộ tâm lý hay chuyên gia. Nội dung trò chuyện không được lưu lại.</p>';
+      '<p class="dai-note">AI chỉ hỗ trợ, không phải chẩn đoán hay thay chuyên gia. Chat lưu trên máy bạn. <button type="button" class="dai-clear">Xóa chat</button></p>';
 
     const log = root.querySelector('.dai-log');
     const chipsEl = root.querySelector('.dai-chips');
@@ -187,41 +209,48 @@
 
     const scrollDown = () => { log.scrollTop = log.scrollHeight; };
 
-    function bubble(who, html, extraCls) {
+    function renderBubble(m) {
       const el = document.createElement('div');
-      el.className = 'dai-msg dai-msg--' + who + (extraCls ? ' ' + extraCls : '');
-      if (who === 'bot') {
+      el.className = 'dai-msg dai-msg--' + m.who + (m.cls ? ' ' + m.cls : '');
+      if (m.who === 'bot') {
         const av = document.createElement('span'); av.className = 'dai-avatar'; av.setAttribute('aria-hidden', 'true'); av.textContent = '🦆';
         el.appendChild(av);
       }
-      const body = document.createElement('div'); body.className = 'dai-bubble'; body.innerHTML = html;
+      const body = document.createElement('div'); body.className = 'dai-bubble'; body.innerHTML = m.html;
       el.appendChild(body);
       log.appendChild(el); scrollDown();
       return el;
+    }
+    function bubble(who, html, cls) {
+      const m = { who, html, cls: cls || '' };
+      if (!restoring) { S.log.push(m); persist(); }
+      return renderBubble(m);
     }
     const bot = (text, cls) => bubble('bot', md(text), cls);
     const botHtml = (html, cls) => bubble('bot', html, cls);
     const user = text => bubble('user', '<p>' + esc(text) + '</p>');
 
-    function typing() {
-      const el = bubble('bot', '<span class="dai-typing" aria-label="Duck AI đang trả lời"><i></i><i></i><i></i></span>');
+    function typing() {   // không lưu vào lịch sử
+      const el = renderBubble({ who: 'bot', html: '<span class="dai-typing" aria-label="Duck AI đang trả lời"><i></i><i></i><i></i></span>' });
       return () => el.remove();
     }
 
-    function chips(list) {
+    // list: các nút; view: mô tả màn hình hiện tại để khôi phục nút sau khi tải lại trang
+    function chips(list, view) {
+      if (view !== undefined && !restoring) { S.view = view; persist(); }
       chipsEl.innerHTML = '';
       (list || []).forEach(c => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'dai-chip' + (c.cls ? ' ' + c.cls : '');
         b.textContent = c.label;
-        b.addEventListener('click', () => { if (!state.busy && !state.destroyed) c.fn(); });
+        b.addEventListener('click', () => { if (!rt.busy && !rt.destroyed) c.fn(); });
         chipsEl.appendChild(b);
       });
     }
 
     function setBusy(v) {
-      state.busy = v;
+      rt.busy = v;
       input.disabled = v; sendBtn.disabled = v;
       chipsEl.classList.toggle('is-disabled', v);
     }
@@ -232,10 +261,10 @@
       const stop = typing();
       let reply = null, usedFallback = false;
       try {
-        const msgs = state.history.slice(-(CFG.maxHistory || 10)).concat(extraMessages || []);
-        reply = await callAI({ mode: reqMode, messages: msgs, context: state.context }, state.abort.signal);
+        const msgs = S.history.slice(-(CFG.maxHistory || 10)).concat(extraMessages || []);
+        reply = await callAI({ mode: reqMode, messages: msgs, context: S.context }, rt.abort.signal);
       } catch (e) {
-        if (state.destroyed) return null;
+        if (rt.destroyed) return null;
         usedFallback = true;
         reply = fallbackFn ? fallbackFn() : null;
       }
@@ -243,13 +272,14 @@
       setBusy(false);
       return { reply, usedFallback };
     }
+    const pushHist = (role, content) => { S.history.push({ role, content }); persist(); };
 
     // ---- Xử lý tin nhắn tự do ----
-    let onFreeText = null; // mỗi chế độ gắn hàm riêng
+    let onFreeText = null;
     form.addEventListener('submit', e => {
       e.preventDefault();
       const text = input.value.trim();
-      if (!text || state.busy) return;
+      if (!text || rt.busy) return;
       input.value = ''; autosize();
       user(text);
       if (isCrisis(text)) { botHtml(C.CRISIS_HTML, 'dai-crisis'); return; }
@@ -261,58 +291,107 @@
     function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 110) + 'px'; }
     input.addEventListener('input', autosize);
 
+    // ---- Khôi phục / đồng bộ ----
+    let restoreView = () => chips([]);
+    let begin = () => {};
+    function restoreAll() {
+      restoring = true;
+      log.innerHTML = '';
+      S.log.forEach(renderBubble);
+      initData();
+      restoreView();
+      restoring = false;
+      scrollDown();
+    }
+    let initData = () => {};
+
+    const onStorage = e => { if (e.key === key) api.reload(); };
+    window.addEventListener('storage', onStorage);
+
     const api = {
       el: root, input, mode,
-      destroy() { state.destroyed = true; state.abort.abort(); },
+      destroy() { rt.destroyed = true; rt.abort.abort(); window.removeEventListener('storage', onStorage); },
       focus() { input.focus(); },
+      // Nạp lại nếu nơi khác (trang AI / popup / tab khác) đã cập nhật đoạn chat
+      reload() {
+        if (rt.busy || rt.destroyed) return;
+        const st = loadStored(mode);
+        if (!st || st.ts <= S.ts) return;
+        S = st; restoreAll();
+      },
+      clear() {
+        if (rt.busy) return;
+        try { localStorage.removeItem(key); } catch (e) {}
+        S = freshState(); log.innerHTML = ''; chips([]); initData(); begin();
+      },
     };
+    root.querySelector('.dai-clear').addEventListener('click', () => {
+      if (window.confirm('Xóa toàn bộ đoạn chat này khỏi máy của bạn?')) api.clear();
+    });
 
     // ================================================================
     //  MODE 1 — DUCK CARE AI SCREENING
     // ================================================================
     if (mode === 'screening') {
-      const answers = new Array(C.SCREENING.length).fill(null);
-      let finished = false;
+      initData = () => { if (!Array.isArray(S.data.answers)) S.data.answers = new Array(C.SCREENING.length).fill(null); S.data.finished = !!S.data.finished; };
+      initData();
+      const answers = () => S.data.answers;
 
       onFreeText = async (text) => {
-        state.history.push({ role: 'user', content: text });
+        pushHist('user', text);
         const r = await ask('screening_chat', [], () => localReply(text, 'screening').reply);
-        if (!r || state.destroyed) return;
+        if (!r || rt.destroyed) return;
         bot(r.reply);
-        state.history.push({ role: 'assistant', content: r.reply });
-        if (!finished && answers.some(a => a === null)) {
-          const next = answers.findIndex(a => a === null);
-          bot('Khi nào sẵn sàng, mình tiếp tục khảo sát nhé (câu ' + (next + 1) + '/' + answers.length + ').');
+        pushHist('assistant', r.reply);
+        if (!S.data.finished && answers().some(a => a === null)) {
+          const next = answers().findIndex(a => a === null);
+          bot('Khi nào sẵn sàng, mình tiếp tục khảo sát nhé (câu ' + (next + 1) + '/' + answers().length + ').');
         }
       };
 
+      function welcomeChips() {
+        chips([
+          { label: 'Bắt đầu khảo sát', cls: 'dai-chip--primary', fn: () => { user('Bắt đầu khảo sát'); askQ(0); } },
+          { label: 'Mình muốn hỏi trước', fn: () => { user('Mình muốn hỏi trước'); bot('Bạn cứ nhắn điều bạn thắc mắc ở ô bên dưới nhé. Khi sẵn sàng, bấm "Bắt đầu khảo sát".'); } },
+        ], { t: 'welcome' });
+      }
       function welcome() {
         bot('Chào bạn, mình là **Duck AI** 🦆\n\nMình sẽ hỏi bạn **8 câu ngắn (khoảng 2 phút)** về cảm giác của bạn gần đây, sau đó cùng xem mức áp lực hiện tại và gợi ý phù hợp cho riêng bạn.\n\n- Không có câu đúng hay sai\n- Kết quả là **ẩn danh**\n- Đây là công cụ tham khảo, không phải chẩn đoán');
-        chips([
-          { label: 'Bắt đầu khảo sát', cls: 'dai-chip--primary', fn: () => { user('Bắt đầu khảo sát'); ask1(0); } },
-          { label: 'Mình muốn hỏi trước', fn: () => { user('Mình muốn hỏi trước'); bot('Bạn cứ nhắn điều bạn thắc mắc ở ô bên dưới nhé. Khi sẵn sàng, bấm "Bắt đầu khảo sát".'); } },
-        ]);
+        welcomeChips();
       }
 
-      function ask1(i) {
+      function qChips(i) {
         const total = C.SCREENING.length;
-        bot('**Câu ' + (i + 1) + '/' + total + '**\n' + C.SCREENING[i].q + '\n\nBạn thấy điều này xảy ra với mình mức nào?');
         const list = C.SCALE_LABELS.map((lab, k) => ({
           label: (k + 1) + ' · ' + lab,
-          fn: () => { user((k + 1) + ' · ' + lab); answers[i] = k + 1; (i + 1 < total) ? ask1(i + 1) : finish(); },
+          fn: () => { user((k + 1) + ' · ' + lab); answers()[i] = k + 1; persist(); (i + 1 < total) ? askQ(i + 1) : finish(); },
         }));
-        if (i > 0) list.push({ label: '← Câu trước', cls: 'dai-chip--ghost', fn: () => { user('← Câu trước'); ask1(i - 1); } });
-        chips(list);
+        if (i > 0) list.push({ label: '← Câu trước', cls: 'dai-chip--ghost', fn: () => { user('← Câu trước'); askQ(i - 1); } });
+        chips(list, { t: 'q', i });
+      }
+      function askQ(i) {
+        bot('**Câu ' + (i + 1) + '/' + C.SCREENING.length + '**\n' + C.SCREENING[i].q + '\n\nBạn thấy điều này xảy ra với mình mức nào?');
+        qChips(i);
+      }
+
+      function resultChips(firstLesson) {
+        chips([
+          { label: '📚 Học bài phù hợp với mình', cls: 'dai-chip--primary', fn: () => { user('Học bài phù hợp với mình'); (opts.goLearning || goLearningPage)(firstLesson); } },
+          { label: '💬 Hỏi thêm về kết quả', fn: () => { user('Mình muốn hỏi thêm về kết quả'); bot('Bạn cứ nhắn điều muốn hỏi ở ô bên dưới nhé.'); input.focus(); } },
+          { label: '🔄 Làm lại khảo sát', cls: 'dai-chip--ghost', fn: () => { S.data.answers = new Array(C.SCREENING.length).fill(null); S.data.finished = false; S.history = []; S.context = {}; persist(); user('Làm lại khảo sát'); askQ(0); } },
+        ], { t: 'result', first: firstLesson });
       }
 
       async function finish() {
-        finished = true;
-        chips([]);
-        const score = answers.reduce((s, v) => s + (v || 0), 0);
+        S.data.finished = true;
+        const ans = answers();
+        const score = ans.reduce((s, v) => s + (v || 0), 0);
         const level = C.classify(score);
         const meta = C.LEVELS[level];
-        const topItems = answers.map((v, i) => ({ v, i })).filter(o => o.v >= 4).sort((a, b) => b.v - a.v).map(o => o.i);
-        state.context = { score, max: C.SCREENING.length * 5, level, answers: answers.slice(), topItems: topItems.map(i => ({ topic: C.SCREENING[i].topic, score: answers[i] })) };
+        const topItems = ans.map((v, i) => ({ v, i })).filter(o => o.v >= 4).sort((a, b) => b.v - a.v).map(o => o.i);
+        const firstLesson = topItems.length ? C.SCREENING[topItems[0]].lesson : 'ap-luc';
+        S.context = { score, max: C.SCREENING.length * 5, level, answers: ans.slice(), topItems: topItems.map(i => ({ topic: C.SCREENING[i].topic, score: ans[i] })) };
+        chips([], { t: 'result', first: firstLesson });
 
         let card = '<div class="dai-result"><p class="muted" style="margin:0 0 6px">Kết quả của bạn</p>' +
           '<span class="result-badge ' + meta.cls + '">' + esc(meta.label) + '</span>' +
@@ -325,7 +404,7 @@
         botHtml(card);
 
         // Lưu ẩn danh phục vụ thống kê (không lưu nội dung chat)
-        saveDoc('ai_screening_results', { score, level, items: answers.slice() });
+        saveDoc('ai_screening_results', { score, level, items: ans.slice() });
 
         if (level === 'do') {
           botHtml('<p><strong>Mình muốn bạn biết:</strong> bạn không cần tự mình vượt qua điều này. Hãy tìm giáo viên chủ nhiệm, phòng tâm lý học đường hoặc một người lớn bạn tin tưởng <strong>trong hôm nay</strong>.</p><p style="margin:0">Cần hỗ trợ khẩn cấp: gọi <strong>111</strong> (bảo vệ trẻ em, 24/7) hoặc <strong>115/112</strong>.</p>', 'dai-crisis');
@@ -334,123 +413,143 @@
         const r = await ask('screening_report',
           [{ role: 'user', content: 'Hãy phân tích kết quả sàng lọc của mình và đưa khuyến nghị cá nhân hoá.' }],
           () => localReport({ level, topItems }));
-        if (!r || state.destroyed) return;
+        if (!r || rt.destroyed) return;
         bot(r.reply);
-        state.history.push({ role: 'assistant', content: r.reply });
-        if (r.usedFallback && !aiAvailable()) { /* chế độ cơ bản: không cần báo thêm */ }
-
-        const firstLesson = topItems.length ? C.SCREENING[topItems[0]].lesson : 'ap-luc';
-        chips([
-          { label: '📚 Học bài phù hợp với mình', cls: 'dai-chip--primary', fn: () => { user('Học bài phù hợp với mình'); (opts.goLearning || goLearningPage)(firstLesson); } },
-          { label: '💬 Hỏi thêm về kết quả', fn: () => { user('Mình muốn hỏi thêm về kết quả'); bot('Bạn cứ nhắn điều muốn hỏi ở ô bên dưới nhé.'); input.focus(); } },
-          { label: '🔄 Làm lại khảo sát', cls: 'dai-chip--ghost', fn: () => { answers.fill(null); finished = false; state.history = []; state.context = {}; user('Làm lại khảo sát'); ask1(0); } },
-        ]);
+        pushHist('assistant', r.reply);
+        resultChips(firstLesson);
       }
 
-      api.start = welcome;
+      restoreView = () => {
+        const v = S.view || { t: 'welcome' };
+        if (v.t === 'q') qChips(v.i);
+        else if (v.t === 'result') resultChips(v.first);
+        else welcomeChips();
+      };
+      begin = welcome;
     }
 
     // ================================================================
     //  MODE 2 — DUCK CARE AI LEARNING
     // ================================================================
     if (mode === 'learning') {
-      let scenarioSeen = [];
-      let score = { ok: 0, total: 0 };
+      initData = () => { if (!Array.isArray(S.data.seen)) S.data.seen = []; if (!S.data.score) S.data.score = { ok: 0, total: 0 }; };
+      initData();
 
       onFreeText = async (text) => {
-        state.history.push({ role: 'user', content: text });
+        pushHist('user', text);
         const r = await ask('learning_chat', [], () => localReply(text, 'learning'));
-        if (!r || state.destroyed) return;
+        if (!r || rt.destroyed) return;
         const rep = r.usedFallback ? r.reply.reply : r.reply;
         bot(rep);
-        state.history.push({ role: 'assistant', content: rep });
-        if (r.usedFallback && r.reply.lesson) {
-          const lid = r.reply.lesson;
-          chips([{ label: '📖 Đọc bài đề xuất', cls: 'dai-chip--primary', fn: () => { user('Đọc bài đề xuất'); playLesson(lid, 0); } }, { label: '☰ Menu', cls: 'dai-chip--ghost', fn: menu }]);
-        }
+        pushHist('assistant', rep);
+        if (r.usedFallback && r.reply.lesson) suggestChips(r.reply.lesson);
       };
 
+      function suggestChips(lid) {
+        chips([{ label: '📖 Đọc bài đề xuất', cls: 'dai-chip--primary', fn: () => { user('Đọc bài đề xuất'); playLesson(lid, 0); } }, { label: '☰ Menu', cls: 'dai-chip--ghost', fn: () => menu() }], { t: 'suggest', id: lid });
+      }
+
+      function menuChips() {
+        chips([
+          { label: '📚 Bài học ngắn', cls: 'dai-chip--primary', fn: () => { user('Bài học ngắn'); lessonList(); } },
+          { label: '🎭 Câu hỏi tình huống', fn: () => { user('Câu hỏi tình huống'); playScenario(pickLocalScenario()); } },
+          { label: '✨ AI tạo tình huống mới', fn: () => { user('AI tạo tình huống mới'); aiScenario(); } },
+          { label: '💬 Hỏi AI về áp lực', fn: () => { user('Hỏi AI về áp lực'); bot('Bạn cứ nhắn câu hỏi ở ô bên dưới, ví dụ: "Làm sao để bớt lo trước kỳ thi?"'); input.focus(); } },
+        ], { t: 'menu' });
+      }
       function menu(first) {
         if (first === true) {
           bot('Chào bạn, mình là **Duck AI Learning** 🦆\n\nỞ đây bạn có thể tự học **bất cứ lúc nào** về cách hiểu và quản lý áp lực: bài học ngắn 2–3 phút, câu hỏi tình huống và hỏi đáp tự do.\n\nBạn muốn bắt đầu từ đâu?');
         } else {
           bot('Bạn muốn học gì tiếp theo?');
         }
-        chips([
-          { label: '📚 Bài học ngắn', cls: 'dai-chip--primary', fn: () => { user('Bài học ngắn'); lessonList(); } },
-          { label: '🎭 Câu hỏi tình huống', fn: () => { user('Câu hỏi tình huống'); playScenario(pickLocalScenario()); } },
-          { label: '✨ AI tạo tình huống mới', fn: () => { user('AI tạo tình huống mới'); aiScenario(); } },
-          { label: '💬 Hỏi AI về áp lực', fn: () => { user('Hỏi AI về áp lực'); bot('Bạn cứ nhắn câu hỏi ở ô bên dưới, ví dụ: "Làm sao để bớt lo trước kỳ thi?"'); input.focus(); } },
-        ]);
+        menuChips();
       }
 
+      function listChips() {
+        const done = getDone();
+        chips(C.LESSONS.map(l => ({
+          label: (done.indexOf(l.id) !== -1 ? '✓ ' : '') + l.icon + ' ' + l.title,
+          fn: () => { user(l.title); playLesson(l.id, 0); },
+        })).concat([{ label: '☰ Menu', cls: 'dai-chip--ghost', fn: () => menu() }]), { t: 'list' });
+      }
       function lessonList() {
         const done = getDone();
         const n = C.LESSONS.filter(l => done.indexOf(l.id) !== -1).length;
         bot('Bạn đã học **' + n + '/' + C.LESSONS.length + '** bài. Chọn một bài nhé:');
-        chips(C.LESSONS.map(l => ({
-          label: (done.indexOf(l.id) !== -1 ? '✓ ' : '') + l.icon + ' ' + l.title,
-          fn: () => { user(l.title); playLesson(l.id, 0); },
-        })).concat([{ label: '☰ Menu', cls: 'dai-chip--ghost', fn: () => menu() }]));
+        listChips();
       }
 
+      function lessonChips(id, step) {
+        const l = C.LESSONS.find(x => x.id === id);
+        chips([
+          { label: step + 1 < l.cards.length ? 'Tiếp tục →' : 'Xong, xem tóm tắt →', cls: 'dai-chip--primary', fn: () => { user('Tiếp tục'); playLesson(id, step + 1); } },
+          { label: '☰ Dừng bài', cls: 'dai-chip--ghost', fn: () => menu() },
+        ], { t: 'lesson', id, step });
+      }
+      function lessonEndChips(id) {
+        const related = C.SCENARIOS.filter(s => s.lesson === id);
+        const list = [];
+        if (related.length) list.push({ label: '🎭 Làm tình huống liên quan', cls: 'dai-chip--primary', fn: () => { user('Làm tình huống liên quan'); playScenario(related[Math.floor(Math.random() * related.length)]); } });
+        list.push({ label: '📚 Bài khác', fn: () => { user('Bài khác'); lessonList(); } });
+        list.push({ label: '☰ Menu', cls: 'dai-chip--ghost', fn: () => menu() });
+        chips(list, { t: 'lessonEnd', id });
+      }
       function playLesson(id, step) {
         const l = C.LESSONS.find(x => x.id === id);
         if (!l) return lessonList();
-        state.context = { lesson: l.title };
+        S.context = { lesson: l.title };
         if (step === 0) bot(l.icon + ' **' + l.title + '** · ~' + l.minutes + ' phút');
         const total = l.cards.length;
         if (step < total) {
           bot('**' + (step + 1) + '/' + total + '** · ' + l.cards[step]);
-          chips([
-            { label: step + 1 < total ? 'Tiếp tục →' : 'Xong, xem tóm tắt →', cls: 'dai-chip--primary', fn: () => { user('Tiếp tục'); playLesson(id, step + 1); } },
-            { label: '☰ Dừng bài', cls: 'dai-chip--ghost', fn: () => menu() },
-          ]);
+          lessonChips(id, step);
         } else {
           markDone(id);
           saveDoc('ai_learning_events', { type: 'lesson', ref: id });
           bot('✅ **Ghi nhớ:** ' + l.remember + '\n\n🎯 **Thử thách nhỏ:** ' + l.challenge);
-          const related = C.SCENARIOS.filter(s => s.lesson === id);
-          const list = [];
-          if (related.length) list.push({ label: '🎭 Làm tình huống liên quan', cls: 'dai-chip--primary', fn: () => { user('Làm tình huống liên quan'); playScenario(related[Math.floor(Math.random() * related.length)]); } });
-          list.push({ label: '📚 Bài khác', fn: () => { user('Bài khác'); lessonList(); } });
-          list.push({ label: '☰ Menu', cls: 'dai-chip--ghost', fn: () => menu() });
-          chips(list);
+          lessonEndChips(id);
         }
       }
 
       function pickLocalScenario() {
-        let pool = C.SCENARIOS.filter(s => scenarioSeen.indexOf(s.id) === -1);
-        if (!pool.length) { scenarioSeen = []; pool = C.SCENARIOS; }
+        let pool = C.SCENARIOS.filter(s => S.data.seen.indexOf(s.id) === -1);
+        if (!pool.length) { S.data.seen = []; pool = C.SCENARIOS; }
         const s = pool[Math.floor(Math.random() * pool.length)];
-        scenarioSeen.push(s.id);
+        S.data.seen.push(s.id); persist();
         return s;
       }
 
-      // sc: { title, situation, options: [{t, ok, fb}] }
-      function playScenario(sc) {
-        const opts2 = shuffle(sc.options);
-        botHtml('<p><strong>🎭 Tình huống' + (sc.title ? ': ' + esc(sc.title) : '') + '</strong></p><p>' + esc(sc.situation) + '</p><p style="margin:0"><strong>Bạn sẽ làm gì?</strong></p>');
-        chips(opts2.map((o, k) => ({
+      // sc: { id?, lesson?, title, situation, options: [{t, ok, fb}] } — options đã xáo trộn
+      function scenarioChips(sc) {
+        chips(sc.options.map((o, k) => ({
           label: String.fromCharCode(65 + k) + '. ' + o.t,
           cls: 'dai-chip--option',
           fn: () => {
             user(String.fromCharCode(65 + k) + '. ' + o.t);
             const icon = o.ok === 'tốt' ? '🌟 Lựa chọn tốt' : o.ok === 'tạm' ? '👌 Cũng được, nhưng còn cách tốt hơn' : '💭 Chưa phải cách hiệu quả';
-            score.total++; if (o.ok === 'tốt') score.ok++;
+            S.data.score.total++; if (o.ok === 'tốt') S.data.score.ok++;
             botHtml('<p><strong>' + icon + '</strong></p><p>' + esc(o.fb) + '</p>');
             if (o.ok !== 'tốt') {
               const best = sc.options.find(x => x.ok === 'tốt');
               if (best) botHtml('<p style="margin:0"><strong>Gợi ý tốt hơn:</strong> ' + esc(best.t) + '</p><p style="margin:6px 0 0">' + esc(best.fb) + '</p>');
             }
             saveDoc('ai_learning_events', { type: 'scenario', ref: sc.id || 'ai' });
-            bot('Bạn đã chọn hướng tốt **' + score.ok + '/' + score.total + '** tình huống trong buổi này.');
-            const list = [{ label: '🎭 Tình huống tiếp theo', cls: 'dai-chip--primary', fn: () => { user('Tình huống tiếp theo'); playScenario(pickLocalScenario()); } }];
-            if (sc.lesson) list.push({ label: '📖 Học bài liên quan', fn: () => { user('Học bài liên quan'); playLesson(sc.lesson, 0); } });
-            list.push({ label: '☰ Menu', cls: 'dai-chip--ghost', fn: () => menu() });
-            chips(list);
+            bot('Bạn đã chọn hướng tốt **' + S.data.score.ok + '/' + S.data.score.total + '** tình huống trong buổi này.');
+            scenarioDoneChips(sc.lesson || null);
           },
-        })));
+        })), { t: 'scenario', sc });
+      }
+      function scenarioDoneChips(lessonId) {
+        const list = [{ label: '🎭 Tình huống tiếp theo', cls: 'dai-chip--primary', fn: () => { user('Tình huống tiếp theo'); playScenario(pickLocalScenario()); } }];
+        if (lessonId) list.push({ label: '📖 Học bài liên quan', fn: () => { user('Học bài liên quan'); playLesson(lessonId, 0); } });
+        list.push({ label: '☰ Menu', cls: 'dai-chip--ghost', fn: () => menu() });
+        chips(list, { t: 'sdone', lesson: lessonId });
+      }
+      function playScenario(sc0) {
+        const sc = Object.assign({}, sc0, { options: shuffle(sc0.options) });
+        botHtml('<p><strong>🎭 Tình huống' + (sc.title ? ': ' + esc(sc.title) : '') + '</strong></p><p>' + esc(sc.situation) + '</p><p style="margin:0"><strong>Bạn sẽ làm gì?</strong></p>');
+        scenarioChips(sc);
       }
 
       async function aiScenario() {
@@ -458,9 +557,9 @@
           bot('Tính năng AI tạo tình huống mới cần kết nối AI. Trong lúc này, mình dùng một tình huống có sẵn nhé.');
           return playScenario(pickLocalScenario());
         }
-        chips([]);
+        chips([], { t: 'menu' });
         const r = await ask('learning_scenario', [{ role: 'user', content: 'Tạo 1 tình huống mới về áp lực học đường cho học sinh THCS/THPT.' }], () => null);
-        if (!r || state.destroyed) return;
+        if (!r || rt.destroyed) return;
         let sc = null;
         if (r.reply) {
           try {
@@ -475,10 +574,22 @@
         playScenario(sc);
       }
 
-      api.start = () => menu(true);
+      restoreView = () => {
+        const v = S.view || { t: 'menu' };
+        if (v.t === 'list') listChips();
+        else if (v.t === 'lesson' && C.LESSONS.some(l => l.id === v.id)) lessonChips(v.id, v.step);
+        else if (v.t === 'lessonEnd' && C.LESSONS.some(l => l.id === v.id)) lessonEndChips(v.id);
+        else if (v.t === 'scenario' && v.sc && Array.isArray(v.sc.options)) scenarioChips(v.sc);
+        else if (v.t === 'sdone') scenarioDoneChips(v.lesson);
+        else if (v.t === 'suggest') suggestChips(v.id);
+        else menuChips();
+      };
+      begin = () => menu(true);
       api.openLesson = id => playLesson(id, 0);
     }
 
+    // Bắt đầu: có đoạn chat đã lưu thì khôi phục, chưa có thì chào mới
+    api.start = () => { if (S.log.length) restoreAll(); else begin(); };
     return api;
   }
 
@@ -498,14 +609,13 @@
     const wrap = document.createElement('div');
     wrap.id = 'dai-widget';
     wrap.innerHTML =
-      '<button type="button" class="dai-launcher" aria-haspopup="dialog" aria-expanded="false" aria-controls="dai-panel">' +
-      '<span class="dai-launcher__icon" aria-hidden="true">🦆</span><span class="dai-launcher__text">Hỏi Duck AI</span></button>' +
+      '<button type="button" class="dai-launcher" aria-label="Mở trợ lý Duck AI" aria-haspopup="dialog" aria-expanded="false" aria-controls="dai-panel">' +
+      '<span aria-hidden="true">🦆</span>AI</button>' +
       '<section id="dai-panel" class="dai-panel" role="dialog" aria-label="Trợ lý Duck Care AI" hidden>' +
-      '<header class="dai-panel__head"><div><strong>Duck Care AI</strong><span>Trợ lý ảo cho học sinh</span></div>' +
-      '<button type="button" class="dai-close" aria-label="Đóng">✕</button></header>' +
       '<div class="dai-tabs" role="tablist">' +
       '<button type="button" role="tab" class="dai-tab is-active" data-mode="screening" aria-selected="true">🩺 Screening</button>' +
-      '<button type="button" role="tab" class="dai-tab" data-mode="learning" aria-selected="false">📚 Learning</button></div>' +
+      '<button type="button" role="tab" class="dai-tab" data-mode="learning" aria-selected="false">📚 Learning</button>' +
+      '<button type="button" class="dai-close" aria-label="Đóng">✕</button></div>' +
       '<div class="dai-panes"><div class="dai-pane" data-pane="screening"></div><div class="dai-pane" data-pane="learning" hidden></div></div>' +
       '</section>';
     document.body.appendChild(wrap);
@@ -527,7 +637,7 @@
       active = mode;
       tabs.forEach(t => { const on = t.dataset.mode === mode; t.classList.toggle('is-active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
       wrap.querySelectorAll('.dai-pane').forEach(p => { p.hidden = p.dataset.pane !== mode; });
-      ensure(mode);
+      ensure(mode).reload();   // lấy đoạn chat mới nhất (có thể vừa chat ở trang AI)
     }
     function open() {
       panel.hidden = false; launcher.setAttribute('aria-expanded', 'true'); wrap.classList.add('is-open');
@@ -547,6 +657,7 @@
       const onAiPage = p === 'ai-screening.html' || p === 'ai-learning.html';
       wrap.hidden = onAiPage;
       if (onAiPage && !panel.hidden) close();
+      Object.keys(chats).forEach(k => chats[k].reload());
     }
     document.addEventListener('duck:pagechange', syncVisibility);
     syncVisibility();
