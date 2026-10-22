@@ -557,15 +557,15 @@ th { color: var(--ink-soft); font-weight: 600; font-size: 0.82rem; text-transfor
 .dai--full .dai-chip { font-size: clamp(0.86rem, 0.82rem + 0.2vw, 0.96rem); }
 .dai--full .dai-note { padding-top: 6px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
 
-/* Widget nổi (góc trái dưới) */
-#dai-widget { position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; }
+/* Widget nổi (góc phải dưới) */
+#dai-widget { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; }
 #dai-widget[hidden] { display: none; }
 .dai-launcher { display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 0 18px 0 14px; border-radius: 999px; border: 0; cursor: pointer; background: var(--butter); color: var(--ink); font: 700 1rem var(--font-body); box-shadow: 0 10px 28px -10px rgba(47,72,88,.55); }
 .dai-launcher span { font-size: 1.4rem; }
 .dai-launcher:hover { background: var(--butter-deep); }
 .dai-launcher:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 #dai-widget.is-open .dai-launcher { display: none; }
-.dai-panel { position: absolute; left: 0; bottom: 0; width: min(390px, calc(100vw - 24px)); height: min(620px, calc(100vh - 32px)); height: min(620px, calc(100dvh - 32px)); display: flex; flex-direction: column; border-radius: 22px; overflow: hidden; background: var(--cream); border: 1px solid var(--line); box-shadow: 0 24px 60px -20px rgba(47,72,88,.5); }
+.dai-panel { position: absolute; right: 0; bottom: 0; width: min(390px, calc(100vw - 24px)); height: min(620px, calc(100vh - 32px)); height: min(620px, calc(100dvh - 32px)); display: flex; flex-direction: column; border-radius: 22px; overflow: hidden; background: var(--cream); border: 1px solid var(--line); box-shadow: 0 24px 60px -20px rgba(47,72,88,.5); }
 .dai-panel[hidden] { display: none; }
 .dai-tabs { display: flex; align-items: center; background: var(--pond-deep); padding: 4px; gap: 4px; }
 .dai-tab { flex: 1; min-height: 40px; border: 0; border-radius: 12px; background: transparent; font: 600 0.88rem var(--font-body); color: var(--ink-soft); cursor: pointer; }
@@ -577,7 +577,7 @@ th { color: var(--ink-soft); font-weight: 600; font-size: 0.82rem; text-transfor
 .dai-pane[hidden] { display: none; }
 .dai-clear { font: inherit; font-size: inherit; background: none; border: 0; padding: 2px 4px; color: var(--ink); text-decoration: underline; cursor: pointer; }
 @media (max-width: 480px) {
-  #dai-widget { left: 12px; }
+  #dai-widget { right: 12px; }
   .dai-panel { position: fixed; inset: auto 0 0 0; width: 100%; height: min(86vh, 86dvh); border-radius: 22px 22px 0 0; }
 }
 
