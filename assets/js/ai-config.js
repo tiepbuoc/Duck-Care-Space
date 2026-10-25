@@ -15,7 +15,9 @@
  */
 window.DUCK_AI_CONFIG = {
   baseUrl: "https://api.shopaikey.com/v1",
-  model: "gpt-4.1-mini-2025-04-14",
+  // Danh sách model theo thứ tự ưu tiên: gặp HTTP 503 (quá tải) thì chuyển sang model kế tiếp.
+  // Model nào đang chạy được sẽ được nhớ cho các lần gọi sau; chỉ khi tất cả đều 503 mới báo lỗi.
+  models: ["gpt-4.1-mini-2025-04-14", "gpt-4o-mini", "gpt-5-mini"],
   apiKey: "sk-4150297863e3eee405805e8609648e6c5cebb1b502ffb46e",
   maxTokens: 1500,
   temperature: 0.6,
