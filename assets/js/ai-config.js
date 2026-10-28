@@ -1,31 +1,18 @@
 /**
  * ============================================================
- *  CẤU HÌNH DUCK CARE AI
+ *  CẤU HÌNH DUCK CARE AI — gọi AI qua Duck AI Gateway (n8n)
  * ============================================================
- * Gọi AI theo đúng cách dự án NR10: API chuẩn OpenAI-compatible
- *   POST {baseUrl}/chat/completions   (Authorization: Bearer apiKey)
+ * KHÔNG có API key LLM ở đây. Key thật chỉ nằm trong Credentials của n8n.
+ * Trình duyệt chỉ xin một token sống ~5 phút (dựa trên phiên Firebase ẩn danh) rồi gửi câu hỏi tới n8n;
+ * n8n kiểm tra, gắn system prompt, chọn model và gọi LLM. Xem n8n/HUONG-DAN-N8N-GATEWAY.md.
  *
- * Thứ tự ưu tiên:
- *   1) baseUrl + apiKey  → gọi thẳng từ trình duyệt (như NR10)
- *   2) endpoint (Worker) → gọi qua máy chủ trung gian, giấu khóa (xem worker/ + README Phần 7)
- *   3) để trống cả hai   → "chế độ cơ bản" (bài học, tình huống, khảo sát vẫn chạy)
- *
- * ⚠️ Khóa đặt ở đây thì AI mở trang cũng đọc & dùng được. Chỉ nên dùng khi TEST /
- *    đặt hạn mức chi tiêu thấp. Khi triển khai thật nên xoá apiKey và dùng endpoint (Worker).
+ * Để gatewayBaseUrl trống → "chế độ cơ bản" (bài học, tình huống, khảo sát vẫn chạy, chat trả lời mẫu).
  */
 window.DUCK_AI_CONFIG = {
-  baseUrl: "https://api.shopaikey.com/v1",
-  // Danh sách model theo thứ tự ưu tiên: gặp HTTP 503 (quá tải) thì chuyển sang model kế tiếp.
-  // Model nào đang chạy được sẽ được nhớ cho các lần gọi sau; chỉ khi tất cả đều 503 mới báo lỗi.
-  models: ["gpt-4.1-mini-2025-04-14", "gpt-4o-mini", "gpt-5-mini"],
-  apiKey: "sk-4150297863e3eee405805e8609648e6c5cebb1b502ffb46e",
-  maxTokens: 1500,
-  temperature: 0.6,
+  // URL gốc của webhook n8n (KHÔNG có dấu "/" ở cuối), ví dụ: https://n8n.ten-mien.com/webhook
+  gatewayBaseUrl: "https://n8nhosting-67079049.phoaify.com/webhook",
 
-  // (tuỳ chọn) địa chỉ Worker trung gian — chỉ dùng khi baseUrl/apiKey để trống
-  endpoint: '',
-
-  // Số tin nhắn gần nhất gửi kèm để AI hiểu ngữ cảnh
+  // Số tin nhắn gần nhất gửi kèm để AI hiểu ngữ cảnh (n8n còn cắt lại theo giới hạn của nó)
   maxHistory: 10,
 
   // Thời gian chờ tối đa cho 1 câu trả lời (ms)

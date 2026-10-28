@@ -13,7 +13,7 @@ duck-care-space/
 ├─ whispers.html      Module C — Duck Whispers (hòm thư ẩn danh + Bảng sẻ chia)
 ├─ ai-screening.html  DUCK CARE AI Screening (chatbot sàng lọc & khuyến nghị)
 ├─ ai-learning.html   DUCK CARE AI Learning (bài học ngắn, tình huống, hỏi đáp)
-├─ worker/duck-ai-worker.js  Máy chủ trung gian giữ API key (Cloudflare Worker)
+├─ n8n/                      Duck AI Gateway: duck-gateway.json (import vào n8n) + HUONG-DAN-N8N-GATEWAY.md
 ├─ admin.html         Admin Dashboard (đăng nhập, thống kê, duyệt tâm sự)
 ├─ firestore.rules    Luật bảo mật Firestore — BẮT BUỘC phải publish luật này
 ├─ assets/
@@ -21,6 +21,8 @@ duck-care-space/
 │  ├─ css/style.css
 │  ├─ js/app.js              tiện ích dùng chung (menu, đếm lượt truy cập)
 │  ├─ js/spa.js              điều hướng "thông suốt" — chuyển trang không tải lại
+│  ├─ js/ai-config.js        địa chỉ gateway n8n (gatewayBaseUrl)
+│  ├─ js/duck-gateway.js     client gọi AI qua n8n (token ẩn danh Firebase)
 │  └─ js/firebase-config.js  ← FILE DUY NHẤT CẦN CHỈNH SỬA để kết nối Firebase
 └─ README.md          (chính là file này)
 ```
@@ -140,25 +142,18 @@ Chatbot xuất hiện ở **mọi trang** dưới dạng nút "Hỏi Duck AI" (g
 
 **Thiết kế an toàn:** điểm/mức nguy cơ không do AI quyết định (tránh sai lệch); trình duyệt tự phát hiện từ khoá tự làm hại bản thân và hiện ngay thông tin hỗ trợ (111, 115/112); AI bị ràng buộc không chẩn đoán, không kê thuốc; đoạn chat chỉ lưu **trong trình duyệt của học sinh** (popup và 2 trang AI dùng chung, có nút "Xóa chat"), không lưu lên Firebase; Firebase chỉ nhận ẩn danh điểm số/mức độ (`ai_screening_results`) và lượt học (`ai_learning_events`) cho Admin.
 
-### Cách gọi AI hiện tại (giống dự án NR10)
-`assets/js/ai-config.js` đã được cấu hình **giống NR10**: API chuẩn OpenAI-compatible, `POST {baseUrl}/chat/completions`, kèm `model` và `apiKey`. Chatbot gọi thẳng từ trình duyệt, không cần Worker. System prompt nằm ở `assets/js/duck-ai-prompts.js`.
-> ⚠️ `apiKey` nằm trong file JS công khai nên ai mở web cũng đọc và dùng được hạn mức. Phù hợp để **test**; khi triển khai cho trường học nên xoá `apiKey`/`baseUrl`, dùng Worker (bên dưới) và/hoặc đặt hạn mức chi tiêu thấp cho khóa.
+### Cách gọi AI: qua Duck AI Gateway (n8n)
+Chatbot **không còn API key trong trình duyệt**. Luồng: web tự đăng nhập ẩn danh Firebase → xin token 5 phút từ n8n (`/duck-gw-token`) → gửi `mode + messages + context` tới `/duck-gw-chat` → n8n kiểm tra Origin/token/hạn mức, gắn system prompt theo `mode`, gọi LLM (key nằm trong Credentials của n8n) và trả `{reply}`. System prompt, model, `max_tokens` do n8n quyết định.
+
+**Hướng dẫn cài đặt đầy đủ: `n8n/HUONG-DAN-N8N-GATEWAY.md`.** Tóm tắt:
+1. Firebase Console → Authentication → bật **Anonymous**.
+2. n8n: tạo credential Header Auth `LLM API Key` → import `n8n/duck-gateway.json` → chọn credential cho `LLM 1/2/3` → sửa node `Config` (`allowedOrigins`, `adminKey`, hạn mức) → bật workflow.
+3. Sửa `gatewayBaseUrl` trong `assets/js/ai-config.js` → đẩy lên GitHub Pages.
+4. **Publish lại `firestore.rules`** (có 2 collection `ai_screening_results`, `ai_learning_events`). Bỏ qua thì chatbot vẫn chạy nhưng Admin không thấy số liệu AI.
 
 ### Hai chế độ chạy
-- **Chế độ cơ bản (mặc định, chưa cần làm gì):** khảo sát, bài học, tình huống có sẵn vẫn dùng đầy đủ; trò chuyện tự do trả lời bằng gợi ý mẫu.
-- **Chế độ AI đầy đủ:** làm các bước dưới đây.
-
-### Bật AI thật (làm 1 lần, miễn phí được)
-Web chạy trên GitHub Pages nên **tuyệt đối không để API key trong code**. Dùng Cloudflare Worker làm trung gian:
-1. Lấy API key: Google AI Studio (Gemini, có gói miễn phí) **hoặc** Anthropic Console (Claude).
-2. Vào https://dash.cloudflare.com → **Workers & Pages → Create → Worker** → dán toàn bộ `worker/duck-ai-worker.js` → Deploy.
-3. Worker → **Settings → Variables and Secrets**, thêm:
-   - `API_KEY` (loại **Secret**) = key ở bước 1
-   - `PROVIDER` = `gemini` hoặc `anthropic`
-   - `ALLOWED_ORIGINS` = địa chỉ web, ví dụ `https://ten-user.github.io` (không có dấu `/` cuối; có thể thêm tên miền riêng, cách nhau bằng dấu phẩy)
-   - (tuỳ chọn) `MODEL` nếu muốn đổi mô hình.
-4. Copy URL Worker (dạng `https://duck-ai.xxx.workers.dev`) → dán vào `endpoint` trong `assets/js/ai-config.js`.
-5. **Publish lại `firestore.rules`** (có thêm 2 collection `ai_screening_results`, `ai_learning_events`). Nếu bỏ qua, chatbot vẫn chạy nhưng Admin không thấy số liệu AI.
+- **Chế độ cơ bản:** khi `gatewayBaseUrl` trống, n8n tắt/lỗi, hoặc chưa bật Anonymous Auth — khảo sát, bài học, tình huống có sẵn vẫn dùng đầy đủ; trò chuyện tự do trả lời bằng gợi ý mẫu.
+- **Chế độ AI đầy đủ:** gateway hoạt động như trên.
 
 ### Chỉnh nội dung
 Toàn bộ câu hỏi, gợi ý theo từng câu, bài học và tình huống nằm trong `assets/js/duck-ai-content.js`. Câu hỏi sàng lọc đang dùng **cùng bộ 8 câu và cùng ngưỡng với Duck Radar**; nếu nhóm nghiên cứu đổi thang đo chuẩn hoá, cần sửa đồng bộ ở cả hai nơi (và ràng buộc `score <= 40`, `items.size() == 8` trong `firestore.rules`).

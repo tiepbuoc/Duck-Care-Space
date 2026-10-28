@@ -157,6 +157,11 @@ auth.onAuthStateChanged(async (user) => {
     dashView.style.display = 'none';
     return;
   }
+  // Phiên ẩn danh do chatbot AI tạo (không phải admin): đăng xuất im lặng, hiện form đăng nhập.
+  if (user.isAnonymous) {
+    await auth.signOut();
+    return;
+  }
   // Kiểm tra user có nằm trong collection "admins" không (đọc bị chặn ở rules
   // nếu không phải admin => catch sẽ bắt lỗi permission-denied và đăng xuất).
   try {
